@@ -13,6 +13,7 @@ class DataContainer(Thread):
         
         maxData=0
         self.ser = serial.Serial(2, 9600)
+        self.data_dict={}
         self.a0_list=[]
         self.a1_list=[]
 
@@ -28,19 +29,31 @@ class DataContainer(Thread):
 
         self.stop()
 
-    def pop_data(self, data_list):
-        data_list.append(random.randint(0,100))
-
     def run(self):
         while(True):
             print("Data received")
             data_raw=self.ser.readline()
             data=data_raw.decode("utf-8")
-            print(data)
-            print(int(data))
-            self.a0_list.append(int(data))
-            print(self.a0_list)
+            self.process(str(data))
+            
             #time.sleep(1)
+
+    def process(self, data):
+        if "data:" in data:
+            header, data_name,=data.split(":")
+
+            # Read value associated to data_name
+            value_raw=self.ser.readline()
+            value=int(value_raw.decode("utf-8"))
+
+            # Store in dictionnary and add key if doesn't exist
+            if "data_name" in self.data_dict:
+                self.data_dict["data_name"].append(value)
+            else:
+                self.data_dict["data_name"]=[value]
+
+    def pop_data(self, data_list):
+        data_list.append(random.randint(0,100))
 
 def main():
     x_max=1000

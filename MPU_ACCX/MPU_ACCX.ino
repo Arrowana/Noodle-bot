@@ -11,7 +11,7 @@ void setup(){
   Wire.write(0x6B);  // PWR_MGMT_1 register
   Wire.write(0);     // set to zero (wakes up the MPU-6050)
   Wire.endTransmission(true);
-  Serial.begin(9600);
+  Serial.begin(38400);
 }
 void loop(){
   Wire.beginTransmission(MPU);
@@ -32,5 +32,5 @@ void loop(){
   Serial.println("data:GyX"); Serial.println(GyX);
   Serial.println("data:GyY"); Serial.println(GyY);
   Serial.println("data:GyZ"); Serial.println(GyZ);
-  delay(50);
+  delay(200);
 }

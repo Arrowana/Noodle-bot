@@ -25,12 +25,12 @@ void loop(){
   GyX=Wire.read()<<8|Wire.read();  // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
   GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
   GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
-  Serial.print("data:AcX"); Serial.println(AcX);
-  Serial.print("data:AcY"); Serial.print(AcY);
-  Serial.print("data:AcZ"); Serial.print(AcZ);
-  Serial.print("data:Tmp"); Serial.print(Tmp/340.00+36.53);  //equation for temperature in degrees C from datasheet
-  Serial.print("data:GyX"); Serial.print(GyX);
-  Serial.print("data:GyY"); Serial.print(GyY);
-  Serial.print("data:GyZ"); Serial.println(GyZ);
-  delay(100);
+  Serial.println("data:AcX"); Serial.println(AcX);
+  Serial.println("data:AcY"); Serial.println(AcY);
+  Serial.println("data:AcZ"); Serial.println(AcZ);
+  Serial.println("data:Tmp"); Serial.println(Tmp/340.00+36.53);  //equation for temperature in degrees C from datasheet
+  Serial.println("data:GyX"); Serial.println(GyX);
+  Serial.println("data:GyY"); Serial.println(GyY);
+  Serial.println("data:GyZ"); Serial.println(GyZ);
+  delay(50);
 }

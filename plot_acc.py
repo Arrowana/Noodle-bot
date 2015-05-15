@@ -19,10 +19,10 @@ class DataContainer(Thread):
 
         self.calibrated=False
 
-        self.s_acc=1
-        self.s_gyro=1
+        self.s_acc=256
+        self.s_gyro=14.375
         self.N_sample=10
-        #self.alpha=tau/(tau+dt)
+        self.alpha=0.98 #tau/(tau+dt)
 
     def update(self, frameNum, a0, a1, a2, a3, a4, a5):
         #self.pop_data(self.a0_list)
@@ -81,6 +81,8 @@ class DataContainer(Thread):
             self.data_dict["gyro_pitch"]=[0]
             self.data_dict["gyro_roll"]=[0]
 
+            self.data_dict["pitch"]=[0]
+
         if self.calibrated==True:
             dt=0.2
             
@@ -103,6 +105,8 @@ class DataContainer(Thread):
             
             self.data_dict["gyro_pitch"].append(self.data_dict["gyro_pitch"][-1]+dt*(gyro_y-self.gyro_y_cal)/self.s_gyro)
 
+            self.data_dict["pitch"].append(self.alpha*(self.data_dict["pitch"][-1]+self.data_dict["gyro_pitch"][-1]*dt)-(1-self.alpha)*acc_pitch)
+
     def calibrate(self):
         print("CALIBRATING===========================")
         self.acc_x_cal=sum(self.data_dict["AcX"][0:self.N_sample])/self.N_sample
@@ -121,10 +125,17 @@ class DataContainer(Thread):
 if __name__ == '__main__':
     def debug():
         plt.figure()
+        plt.title("acc_pitch")
         plt.plot(data.data_dict["acc_pitch"])
 
         plt.figure()
+        plt.title("gyro_pitch")
         plt.plot(data.data_dict["gyro_pitch"])
+
+        plt.figure()
+        plt.title("pitch")
+        plt.plot(data.data_dict["pitch"])
+        
         plt.show()
         
     x_max=300

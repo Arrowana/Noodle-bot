@@ -1,5 +1,10 @@
+#!/usr/bin/env python
+import rospy
+
 import serial
 
+from geometry_msgs.msg import Quaternion
+from sensor_msgs.msg import Imu
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import random
@@ -7,12 +12,14 @@ from threading import Thread, Event
 import time
 import math as m
 
+from tf.transformations import quaternion_from_euler
+
 class DataContainer(Thread):
     def __init__(self):
         Thread.__init__(self)
         
         maxData=0
-        self.ser = serial.Serial(2, 115200)
+        self.ser = serial.Serial('/dev/ttyACM0', 115200)
         self.data_dict={}
         self.a0_list=[]
         self.a1_list=[]
@@ -23,6 +30,8 @@ class DataContainer(Thread):
         self.s_gyro=14.375
         self.N_sample=10
         self.alpha=0.98 #tau/(tau+dt)
+
+        self.pub = rospy.Publisher('imu', Imu, queue_size=10)
 
     def modify(self, line, data_name):
         #Plot only N_values
@@ -86,6 +95,18 @@ class DataContainer(Thread):
 
             if "AcX" in self.data_dict:
                 self.compute()
+
+    def publish_ros(self):
+        imu_msg=Imu()
+        imu_msg.header.stamp=rospy.Time.now()
+        imu_msg.header.frame_id="map"
+        quat=quaternion_from_euler(0, self.data_dict["acc_pitch"][-1],0)
+        imu_msg.orientation.x=quat[0]
+        imu_msg.orientation.y=quat[1]
+        imu_msg.orientation.z=quat[2]
+        imu_msg.orientation.w=quat[3]
+
+        self.pub.publish(imu_msg)
             
     def compute(self):
         if self.calibrated==False and len(self.data_dict["AcX"])>self.N_sample+1:
@@ -110,7 +131,7 @@ class DataContainer(Thread):
             gyro_y=self.data_dict["GyY"][-1]
             gyro_z=self.data_dict["GyZ"][-1]
             print("INSIDE--------------------------------")
-            acc_pitch=180*m.atan2((acc_x-self.acc_x_cal)/self.s_acc,(acc_z-self.acc_z_cal)/self.s_acc)/m.pi
+            acc_pitch=m.atan2((acc_x-self.acc_x_cal)/self.s_acc,(acc_z-self.acc_z_cal)/self.s_acc)
             self.data_dict["acc_pitch"].append(acc_pitch)
             
             self.data_dict["gyro_roll"].append(self.data_dict["gyro_roll"][-1]+dt*(gyro_x-self.gyro_x_cal)/self.s_gyro)
@@ -122,6 +143,8 @@ class DataContainer(Thread):
             self.data_dict["gyro_pitch"].append(self.data_dict["gyro_pitch"][-1]+dt*(gyro_y-self.gyro_y_cal)/self.s_gyro)
 
             self.data_dict["pitch"].append(self.alpha*(self.data_dict["pitch"][-1]+self.data_dict["gyro_pitch"][-1]*dt)-(1-self.alpha)*acc_pitch)
+
+            self.publish_ros()
 
     def calibrate(self):
         print("CALIBRATING===========================")
@@ -153,6 +176,8 @@ if __name__ == '__main__':
         plt.plot(data.data_dict["pitch"])
         
         plt.show()
+
+    rospy.init_node('IMU_publisher', anonymous=True)
         
     x_max=300
     y_max=8000

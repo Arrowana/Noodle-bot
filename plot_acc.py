@@ -15,14 +15,13 @@ import math as m
 from tf.transformations import quaternion_from_euler
 
 class DataContainer(Thread):
-    def __init__(self):
+    def __init__(self, lines):
         Thread.__init__(self)
         
         maxData=0
         self.ser = serial.Serial('/dev/ttyACM0', 115200)
         self.data_dict={}
-        self.a0_list=[]
-        self.a1_list=[]
+        self.lines=lines
 
         self.calibrated=False
 
@@ -36,36 +35,20 @@ class DataContainer(Thread):
     def modify(self, line, data_name):
         #Plot only N_values
         length=40
-        
-        line.set_data(range(length),self.data_dict[data_name][-length:])
-        line.axes.set_xlim(0, length)
-        y_max=max([abs(x) for x in self.data_dict[data_name]])
-        line.axes.set_ylim(-y_max, y_max)
 
-    def update(self, frameNum, a0, a1, a2, a3, a4, a5, a6, a7):
+        if(len(self.data_dict[data_name])>length):
+            line.set_data(range(length),self.data_dict[data_name][-length:])
+            line.axes.set_xlim(0, length)
+            y_max=max([abs(x) for x in self.data_dict[data_name]])
+            line.axes.set_ylim(-y_max, y_max)
 
-        
-        if "AcX" in self.data_dict:
-            self.modify(a0, "AcX")
+    def update(self, frameNum):
+        for line in self.lines:
+            data_name=line.get_label()
+            if data_name in self.data_dict:
+                self.modify(line, data_name)
 
-        if "AcY" in self.data_dict:
-            self.modify(a1, "AcY")
-
-        if "AcZ" in self.data_dict:
-            self.modify(a2, "AcZ")
-            
-        if "GyX" in self.data_dict:
-            self.modify(a3, "GyX")
-        if "GyY" in self.data_dict:
-            self.modify(a4, "GyY")
-        if "GyZ" in self.data_dict:
-            self.modify(a5, "GyZ")
-            
-        if "pitch" in self.data_dict:
-            self.modify(a6, "pitch")
-
-        if "acc_pitch" in self.data_dict:
-            self.modify(a7, "acc_pitch")
+        #print(self.data_dict["acc_roll"])
 
     def run(self):   
         for i in range(100000):
@@ -79,13 +62,16 @@ class DataContainer(Thread):
 
     def process(self, data):
         if "data:" in data:
-            header, data_name=data.split(":")
-            data_name,=data_name.splitlines()
-
-            # Read value associated to data_name
-            value_raw=self.ser.readline()
-            #print(value_raw)
-            value=float(value_raw.decode("utf-8"))
+            try:
+                header, data_name=data.split(":")
+                data_name,=data_name.splitlines()
+                # Read value associated to data_name
+                value_raw=self.ser.readline()
+                #print(value_raw)
+                value=float(value_raw.decode("utf-8"))
+            except:
+                print("Unexpected format of data")
+                return
 
             # Store in dictionnary and add key if doesn't exist
             if data_name in self.data_dict:
@@ -100,7 +86,7 @@ class DataContainer(Thread):
         imu_msg=Imu()
         imu_msg.header.stamp=rospy.Time.now()
         imu_msg.header.frame_id="map"
-        quat=quaternion_from_euler(0, self.data_dict["acc_pitch"][-1],0)
+        quat=quaternion_from_euler(-self.data_dict["acc_roll"][-1], self.data_dict["acc_pitch"][-1],0)
         imu_msg.orientation.x=quat[0]
         imu_msg.orientation.y=quat[1]
         imu_msg.orientation.z=quat[2]
@@ -122,6 +108,8 @@ class DataContainer(Thread):
 
         if self.calibrated==True:
             dt=0.2
+
+            print("COMPUTING--------------------------------")
             
             acc_x=self.data_dict["AcX"][-1]
             acc_y=self.data_dict["AcY"][-1]
@@ -130,7 +118,7 @@ class DataContainer(Thread):
             gyro_x=self.data_dict["GyX"][-1]
             gyro_y=self.data_dict["GyY"][-1]
             gyro_z=self.data_dict["GyZ"][-1]
-            print("INSIDE--------------------------------")
+            
             acc_pitch=m.atan2((acc_x-self.acc_x_cal)/self.s_acc,(acc_z-self.acc_z_cal)/self.s_acc)
             self.data_dict["acc_pitch"].append(acc_pitch)
             
@@ -138,7 +126,7 @@ class DataContainer(Thread):
             
 
             acc_roll=m.atan2((acc_y-self.acc_y_cal)/self.s_acc,(acc_z-self.acc_z_cal)/self.s_acc)
-            self.data_dict["acc_roll"].append(acc_pitch)
+            self.data_dict["acc_roll"].append(acc_roll)
             
             self.data_dict["gyro_pitch"].append(self.data_dict["gyro_pitch"][-1]+dt*(gyro_y-self.gyro_y_cal)/self.s_gyro)
 
@@ -181,42 +169,47 @@ if __name__ == '__main__':
         
     x_max=300
     y_max=8000
-    
-    try:
-        data=DataContainer()
-        data.daemon=True
-        data.start()
-    except(KeyboardInterrupt, SystemExit):
-        print('\n! Received keyboard interrupt, quitting threads.\n')
 
-    # set up animation
+    # Set up animation
+    # please keep in mind that the label of a line is used for ploting data
     fig = plt.figure(0)
-    ax1=plt.subplot(221)
+    ax1=plt.subplot(231)
     plt.title("Acc")
     r1=[[0, x_max], [-y_max, y_max]]
     accX, = ax1.plot([],[],label="AcX")
     accY, = ax1.plot([],[],label="AcY")
     accZ, = ax1.plot([],[],label="AcZ")
     
-    ax2=plt.subplot(222)
+    ax2=plt.subplot(232)
     plt.title("Gy")
     r2=[[0, x_max], [-200, 200]]
     gyroX, = ax2.plot([],[], label="GyX")
     gyroY, = ax2.plot([],[], label="GyY")
     gyroZ, = ax2.plot([],[], label="GyZ")
 
-    ax3=plt.subplot(223)
+    ax3=plt.subplot(233)
     plt.title("pitch")
     pitch, = ax3.plot([],[], label="pitch")
 
-    ax4=plt.subplot(224)
+    ax4=plt.subplot(234)
     plt.title("acc_pitch")
     acc_pitch, = ax4.plot([],[], label="acc_pitch")
+
+    ax5=plt.subplot(235)
+    plt.title("acc_roll")
+    acc_roll, = ax5.plot([],[], label="acc_roll")
     
-                        
-    anim = animation.FuncAnimation(fig, data.update, 
-                                 fargs=(accX, accY, accZ, gyroX, gyroY, gyroZ, pitch, acc_pitch), 
-                                 interval=500)
+    lines=[accX, accY, accZ, gyroX, gyroY, gyroZ, pitch, acc_pitch, acc_roll]
+
+    #Create data container
+    try:
+        data=DataContainer(lines)
+        data.daemon=True
+        data.start()
+    except(KeyboardInterrupt, SystemExit):
+        print('\n! Received keyboard interrupt, quitting threads.\n')
+
+    anim = animation.FuncAnimation(fig, data.update, interval=100)
     plt.show()
 
    

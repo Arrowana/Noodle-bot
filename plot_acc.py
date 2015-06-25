@@ -14,19 +14,21 @@ import math as m
 
 from tf.transformations import quaternion_from_euler
 
+SERIALPORT="/dev/ttyUSB0"
+
 class DataContainer(Thread):
     def __init__(self, lines):
         Thread.__init__(self)
         
         maxData=0
-        self.ser = serial.Serial('/dev/ttyACM0', 115200)
+        self.ser = serial.Serial(SERIALPORT, 115200)
         self.data_dict={}
         self.lines=lines
 
         self.calibrated=False
 
         self.s_acc=256
-        self.s_gyro=14.375
+        self.s_gyro=131
         self.N_sample=10
         self.alpha=0.98 #tau/(tau+dt)
 
@@ -86,7 +88,7 @@ class DataContainer(Thread):
         imu_msg=Imu()
         imu_msg.header.stamp=rospy.Time.now()
         imu_msg.header.frame_id="map"
-        quat=quaternion_from_euler(-self.data_dict["acc_roll"][-1], self.data_dict["acc_pitch"][-1],0)
+        quat=quaternion_from_euler(-self.data_dict["acc_roll"][-1], self.data_dict["acc_pitch"][-1],self.data_dict["gyro_yaw"][-1])
         imu_msg.orientation.x=quat[0]
         imu_msg.orientation.y=quat[1]
         imu_msg.orientation.z=quat[2]
@@ -101,35 +103,46 @@ class DataContainer(Thread):
             self.data_dict["acc_pitch"]=[]
             self.data_dict["acc_roll"]=[]
 
-            self.data_dict["gyro_pitch"]=[0]
             self.data_dict["gyro_roll"]=[0]
+            self.data_dict["gyro_pitch"]=[0]
+            self.data_dict["gyro_yaw"]=[0]
 
             self.data_dict["pitch"]=[0]
 
         if self.calibrated==True:
-            dt=0.2
+            dt=0.02
 
             print("COMPUTING--------------------------------")
             
-            acc_x=self.data_dict["AcX"][-1]
-            acc_y=self.data_dict["AcY"][-1]
-            acc_z=self.data_dict["AcZ"][-1]
+            acc_x=(self.data_dict["AcX"][-1]-self.acc_x_cal)/self.s_acc
+            acc_y=(self.data_dict["AcY"][-1]-self.acc_y_cal)/self.s_acc
+            acc_z=(self.data_dict["AcZ"][-1]-self.acc_z_cal)/self.s_acc
             
-            gyro_x=self.data_dict["GyX"][-1]
-            gyro_y=self.data_dict["GyY"][-1]
-            gyro_z=self.data_dict["GyZ"][-1]
-            
-            acc_pitch=m.atan2((acc_x-self.acc_x_cal)/self.s_acc,(acc_z-self.acc_z_cal)/self.s_acc)
-            self.data_dict["acc_pitch"].append(acc_pitch)
-            
-            self.data_dict["gyro_roll"].append(self.data_dict["gyro_roll"][-1]+dt*(gyro_x-self.gyro_x_cal)/self.s_gyro)
+            gyro_x=(self.data_dict["GyX"][-1]-self.gyro_x_cal)/self.s_gyro
+            gyro_y=(self.data_dict["GyY"][-1]-self.gyro_y_cal)/self.s_gyro
+            gyro_z=(self.data_dict["GyZ"][-1]-self.gyro_z_cal)/self.s_gyro
             
 
-            acc_roll=m.atan2((acc_y-self.acc_y_cal)/self.s_acc,(acc_z-self.acc_z_cal)/self.s_acc)
+            # Roll and pitch from accelerometer
+            acc_roll=m.atan2(acc_y, acc_z)
             self.data_dict["acc_roll"].append(acc_roll)
-            
-            self.data_dict["gyro_pitch"].append(self.data_dict["gyro_pitch"][-1]+dt*(gyro_y-self.gyro_y_cal)/self.s_gyro)
 
+            acc_pitch=m.atan2(acc_x,acc_z)
+            self.data_dict["acc_pitch"].append(acc_pitch)
+
+            # Roll, pitch and yaw from gyroscope
+            gyro_roll=self.data_dict["gyro_roll"][-1]+dt*gyro_x
+            self.data_dict["gyro_roll"].append(gyro_roll)
+            
+            gyro_pitch=self.data_dict["gyro_pitch"][-1]+dt*gyro_y
+            self.data_dict["gyro_pitch"].append(gyro_pitch)
+
+            K=1.
+            gyro_yaw=K*(self.data_dict["gyro_yaw"][-1]/K+dt*gyro_z)
+            self.data_dict["gyro_yaw"].append(gyro_yaw)
+            print(gyro_yaw)
+
+            # Fusion and filtering of data
             self.data_dict["pitch"].append(self.alpha*(self.data_dict["pitch"][-1]+self.data_dict["gyro_pitch"][-1]*dt)-(1-self.alpha)*acc_pitch)
 
             self.publish_ros()
@@ -173,33 +186,41 @@ if __name__ == '__main__':
     # Set up animation
     # please keep in mind that the label of a line is used for ploting data
     fig = plt.figure(0)
-    ax1=plt.subplot(231)
+    ax1=plt.subplot(331)
     plt.title("Acc")
     r1=[[0, x_max], [-y_max, y_max]]
     accX, = ax1.plot([],[],label="AcX")
     accY, = ax1.plot([],[],label="AcY")
     accZ, = ax1.plot([],[],label="AcZ")
     
-    ax2=plt.subplot(232)
+    ax2=plt.subplot(332)
     plt.title("Gy")
     r2=[[0, x_max], [-200, 200]]
     gyroX, = ax2.plot([],[], label="GyX")
     gyroY, = ax2.plot([],[], label="GyY")
     gyroZ, = ax2.plot([],[], label="GyZ")
 
-    ax3=plt.subplot(233)
+    ax3=plt.subplot(333)
     plt.title("pitch")
     pitch, = ax3.plot([],[], label="pitch")
 
-    ax4=plt.subplot(234)
-    plt.title("acc_pitch")
-    acc_pitch, = ax4.plot([],[], label="acc_pitch")
-
-    ax5=plt.subplot(235)
+    ax4=plt.subplot(334)
     plt.title("acc_roll")
-    acc_roll, = ax5.plot([],[], label="acc_roll")
+    acc_roll, = ax4.plot([],[], label="acc_roll")
+
+    ax5=plt.subplot(335)
+    plt.title("acc_pitch")
+    acc_pitch, = ax5.plot([],[], label="acc_pitch")
+
+    ax6=plt.subplot(336)
+    plt.title("gyro_roll")
+    gyro_roll, = ax6.plot([],[], label="gyro_roll")
+
+    ax7=plt.subplot(337)
+    plt.title("gyro_yaw")
+    gyro_yaw, = ax7.plot([],[], label="gyro_yaw")
     
-    lines=[accX, accY, accZ, gyroX, gyroY, gyroZ, pitch, acc_pitch, acc_roll]
+    lines=[accX, accY, accZ, gyroX, gyroY, gyroZ, pitch, acc_pitch, acc_roll, gyro_roll, gyro_yaw]
 
     #Create data container
     try:

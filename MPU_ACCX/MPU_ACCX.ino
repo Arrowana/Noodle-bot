@@ -15,6 +15,12 @@ void setup(){
 }
 void loop(){
   Wire.beginTransmission(MPU);
+  //Set low pass filter
+  Wire.write(0x1A);
+  Wire.write(2);
+  Wire.endTransmission();
+  
+  Wire.beginTransmission(MPU);
   Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
   Wire.endTransmission(false);
   Wire.requestFrom(MPU,14,true);  // request a total of 14 registers
@@ -32,5 +38,14 @@ void loop(){
   Serial.println("data:GyX"); Serial.println(GyX);
   Serial.println("data:GyY"); Serial.println(GyY);
   Serial.println("data:GyZ"); Serial.println(GyZ);
+  Wire.endTransmission();
+  
+  Wire.beginTransmission(MPU);
+  Wire.write(0x1A);
+  Wire.requestFrom(MPU,1);
+  Serial.println("Data:Low_pass");
+  Serial.println(B00000111 & Wire.read());
+  Wire.endTransmission();
+  
   delay(200);
 }

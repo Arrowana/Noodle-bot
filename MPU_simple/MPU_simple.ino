@@ -12,26 +12,6 @@ void setup(){
   Wire.write(0);     // set to zero (wakes up the MPU-6050)
   Wire.endTransmission(true);
   
-  Wire.beginTransmission(MPU);
-  //Set low pass filter - see register datasheet
-  Wire.write(0x1A);
-  Wire.write(0x06);
-  Wire.endTransmission(true);
-  
-  Wire.beginTransmission(MPU);
-  //Set GYRO_CONFIG
-  Wire.write(0x1B);
-  //Write config to bit4 and bit3
-  Wire.write(0 << 3);
-  Wire.endTransmission(true);
-  
-  Wire.beginTransmission(MPU);
-  //Set ACCEL_CONFIG
-  Wire.write(0x1C);
-  //Write config to bit4 and bit3
-  Wire.write(0 << 3);
-  Wire.endTransmission(true);
-  
   Serial.begin(115200);
 }
 void loop(){
@@ -53,28 +33,6 @@ void loop(){
   Serial.println("data:GyX"); Serial.println(GyX);
   Serial.println("data:GyY"); Serial.println(GyY);
   Serial.println("data:GyZ"); Serial.println(GyZ);
-  
-  Wire.beginTransmission(MPU);
-  Wire.write(0x1A);
-  Wire.endTransmission(false);
-  Wire.requestFrom(MPU,1,true);
-  Serial.println("Data:Low_pass");
-  Serial.println(B00000111 & Wire.read());
-  
-  Wire.beginTransmission(MPU);
-  Wire.write(0x1B);
-  Wire.endTransmission(false);
-  Wire.requestFrom(MPU,1,true);
-  Serial.println("Data:Gyro_config");
-  Serial.println((B00011000 & Wire.read())>>3);
-  
-  Wire.beginTransmission(MPU);
-  Wire.write(0x1C);
-  Wire.endTransmission(false);
-  Wire.requestFrom(MPU,1,true);
-  Serial.println("Data:Accel_config");
-  Serial.println((B00011000 & Wire.read())>>3);
-  
   
   delay(20);
 }

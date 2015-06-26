@@ -27,12 +27,13 @@ class DataContainer(Thread):
 
         self.calibrated=False
 
-        self.s_acc=256
-        self.s_gyro=131
+        self.s_acc=1
+        self.s_gyro=131*180/m.pi # sensivity+ deg to rad
         self.N_sample=10
         self.alpha=0.98 #tau/(tau+dt)
 
-        self.pub = rospy.Publisher('imu', Imu, queue_size=10)
+        self.imu_raw_pub = rospy.Publisher('imu_raw', Imu, queue_size=10)
+        self.imu_filtered_pub = rospy.Publisher('imu_filtered', Imu, queue_size=10)
 
     def modify(self, line, data_name):
         #Plot only N_values
@@ -49,8 +50,6 @@ class DataContainer(Thread):
             data_name=line.get_label()
             if data_name in self.data_dict:
                 self.modify(line, data_name)
-
-        #print(self.data_dict["acc_roll"])
 
     def run(self):   
         for i in range(100000):
@@ -94,7 +93,15 @@ class DataContainer(Thread):
         imu_msg.orientation.z=quat[2]
         imu_msg.orientation.w=quat[3]
 
-        self.pub.publish(imu_msg)
+        self.imu_raw_pub.publish(imu_msg)
+
+        quat=quaternion_from_euler(-self.data_dict["roll"][-1], self.data_dict["pitch"][-1],self.data_dict["gyro_yaw"][-1])
+        imu_msg.orientation.x=quat[0]
+        imu_msg.orientation.y=quat[1]
+        imu_msg.orientation.z=quat[2]
+        imu_msg.orientation.w=quat[3]
+
+        self.imu_filtered_pub.publish(imu_msg)
             
     def compute(self):
         if self.calibrated==False and len(self.data_dict["AcX"])>self.N_sample+1:
@@ -107,6 +114,7 @@ class DataContainer(Thread):
             self.data_dict["gyro_pitch"]=[0]
             self.data_dict["gyro_yaw"]=[0]
 
+            self.data_dict["roll"]=[0]
             self.data_dict["pitch"]=[0]
 
         if self.calibrated==True:
@@ -127,7 +135,7 @@ class DataContainer(Thread):
             acc_roll=m.atan2(acc_y, acc_z)
             self.data_dict["acc_roll"].append(acc_roll)
 
-            acc_pitch=m.atan2(acc_x,acc_z)
+            acc_pitch=-m.atan2(acc_x,acc_z)
             self.data_dict["acc_pitch"].append(acc_pitch)
 
             # Roll, pitch and yaw from gyroscope
@@ -143,7 +151,22 @@ class DataContainer(Thread):
             print(gyro_yaw)
 
             # Fusion and filtering of data
-            self.data_dict["pitch"].append(self.alpha*(self.data_dict["pitch"][-1]+self.data_dict["gyro_pitch"][-1]*dt)-(1-self.alpha)*acc_pitch)
+            #
+            forceMagnitude=abs(acc_x)+abs(acc_y)+abs(acc_z)
+            print(forceMagnitude)
+
+            if(forceMagnitude> 0 and forceMagnitude < 0):
+                print("reached")
+
+            last_roll=self.data_dict["roll"][-1]
+            roll=self.alpha*(last_roll-gyro_x*dt)-(1-self.alpha)*acc_roll
+            self.data_dict["roll"].append(roll)
+
+            last_pitch=self.data_dict["pitch"][-1]
+            pitch=self.alpha*(last_pitch+gyro_y*dt)-(1-self.alpha)*acc_pitch
+            self.data_dict["pitch"].append(pitch)
+
+
 
             self.publish_ros()
 
@@ -151,7 +174,7 @@ class DataContainer(Thread):
         print("CALIBRATING===========================")
         self.acc_x_cal=sum(self.data_dict["AcX"][0:self.N_sample])/self.N_sample
         self.acc_y_cal=sum(self.data_dict["AcY"][0:self.N_sample])/self.N_sample
-        self.acc_z_cal=0 #sum(self.data_dict["AcZ"][0:self.N_sample])/self.N_sample
+        self.acc_z_cal=0
 
         self.gyro_x_cal=sum(self.data_dict["GyX"][0:self.N_sample])/self.N_sample
         self.gyro_y_cal=sum(self.data_dict["GyY"][0:self.N_sample])/self.N_sample
@@ -201,26 +224,34 @@ if __name__ == '__main__':
     gyroZ, = ax2.plot([],[], label="GyZ")
 
     ax3=plt.subplot(333)
-    plt.title("pitch")
-    pitch, = ax3.plot([],[], label="pitch")
+    plt.title("acc_roll")
+    acc_roll, = ax3.plot([],[], label="acc_roll")
 
     ax4=plt.subplot(334)
-    plt.title("acc_roll")
-    acc_roll, = ax4.plot([],[], label="acc_roll")
+    plt.title("acc_pitch")
+    acc_pitch, = ax4.plot([],[], label="acc_pitch")
 
     ax5=plt.subplot(335)
-    plt.title("acc_pitch")
-    acc_pitch, = ax5.plot([],[], label="acc_pitch")
+    plt.title("gyro_roll")
+    gyro_roll, = ax5.plot([],[], label="gyro_roll")
 
     ax6=plt.subplot(336)
-    plt.title("gyro_roll")
-    gyro_roll, = ax6.plot([],[], label="gyro_roll")
+    plt.title("gyro_pitch")
+    gyro_pitch, = ax6.plot([],[], label="gyro_pitch")
 
     ax7=plt.subplot(337)
     plt.title("gyro_yaw")
     gyro_yaw, = ax7.plot([],[], label="gyro_yaw")
+
+    ax8=plt.subplot(338)
+    plt.title("roll")
+    roll, = ax8.plot([],[], label="roll")
+
+    ax9=plt.subplot(339)
+    plt.title("pitch")
+    pitch, = ax9.plot([],[], label="pitch")
     
-    lines=[accX, accY, accZ, gyroX, gyroY, gyroZ, pitch, acc_pitch, acc_roll, gyro_roll, gyro_yaw]
+    lines=[accX, accY, accZ, gyroX, gyroY, gyroZ, acc_pitch, acc_roll, gyro_roll, gyro_pitch, gyro_yaw, roll, pitch]
 
     #Create data container
     try:

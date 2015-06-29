@@ -42,8 +42,11 @@ class DataContainer(Thread):
         if(len(self.data_dict[data_name])>length):
             line.set_data(range(length),self.data_dict[data_name][-length:])
             line.axes.set_xlim(0, length)
-            y_max=max([abs(x) for x in self.data_dict[data_name]])
-            line.axes.set_ylim(-y_max, y_max)
+
+            if(data_name != "acc_pitch" and data_name != "gyro_pitch" and data_name != "pitch"):
+                # y_max as to check with other values on axes
+                y_max=max([abs(x) for x in self.data_dict[data_name]])
+                line.axes.set_ylim(-y_max, y_max)
 
     def update(self, frameNum):
         for line in self.lines:
@@ -52,7 +55,7 @@ class DataContainer(Thread):
                 self.modify(line, data_name)
 
     def run(self):   
-        while True:
+        for i in range(100000):
             #print("Data received")
             data_raw=self.ser.readline()
             #print(data_raw)
@@ -68,7 +71,8 @@ class DataContainer(Thread):
                 data_name,=data_name.splitlines()
                 # Read value associated to data_name
                 value_raw=self.ser.readline()
-                #print(value_raw)
+                print(data_name)
+                print(value_raw)
                 value=float(value_raw.decode("utf-8"))
             except:
                 print("Unexpected format of data")
@@ -133,14 +137,15 @@ class DataContainer(Thread):
             acc_roll=m.atan2(acc_y, acc_z)
             self.data_dict["acc_roll"].append(acc_roll)
 
-            acc_pitch=-m.atan2(acc_x,acc_z)
+            acc_pitch=-180.*m.atan2(acc_x,acc_z)/m.pi
             self.data_dict["acc_pitch"].append(acc_pitch)
+            print("acc_pitch : "+str(acc_pitch))
 
             # Roll, pitch and yaw from gyroscope
             gyro_roll=self.data_dict["gyro_roll"][-1]+dt*gyro_x
             self.data_dict["gyro_roll"].append(gyro_roll)
             
-            gyro_pitch=self.data_dict["gyro_pitch"][-1]+dt*gyro_y
+            gyro_pitch=self.data_dict["gyro_pitch"][-1]+180.*dt*gyro_y/m.pi
             self.data_dict["gyro_pitch"].append(gyro_pitch)
 
             K=1.
@@ -156,7 +161,8 @@ class DataContainer(Thread):
             self.data_dict["roll"].append(roll)
 
             last_pitch=self.data_dict["pitch"][-1]
-            pitch=self.alpha*(last_pitch+gyro_y*dt)+(1-self.alpha)*acc_pitch
+            pitch=self.alpha*(last_pitch+180.*gyro_y*dt/m.pi)+(1-self.alpha)*acc_pitch
+            #pitch=(self.alpha*(last_pitch+gyro_y*dt)+(1-self.alpha)*acc_pitch)
             self.data_dict["pitch"].append(pitch)
 
             sample_size=2000
@@ -245,16 +251,27 @@ if __name__ == '__main__':
     plt.title("acc_pitch, gyro_pitch and pitch")
     acc_pitch, = ax5.plot([],[], label="acc_pitch")
     gyro_pitch, = ax5.plot([],[], label="gyro_pitch")
+    pitch, = ax5.plot([],[], label="pitch")
+    pitch.axes.set_ylim(-90, 90)
 
     ax6=plt.subplot(336)
-    plt.title("pitch")
-    pitch, = ax5.plot([],[], label="pitch")
+    plt.title("yaw_dmp")
+    yaw_dmp, = ax6.plot([],[], label="yaw_dmp")
 
     ax7=plt.subplot(337)
+    plt.title("pitch_dmp")
+    pitch_dmp, = ax7.plot([],[], label="pitch_dmp")
+
+    ax8=plt.subplot(338)
+    plt.title("roll_dmp")
+    roll_dmp, = ax8.plot([],[], label="roll_dmp")
+
+    ax9=plt.subplot(339)
     plt.title("gyro_yaw")
-    gyro_yaw, = ax7.plot([],[], label="gyro_yaw")
+    gyro_yaw, = ax9.plot([],[], label="gyro_yaw")
     
-    lines=[accX, accY, accZ, gyroX, gyroY, gyroZ, acc_pitch, acc_roll, gyro_roll, gyro_pitch, gyro_yaw, roll, pitch]
+    lines=[accX, accY, accZ, gyroX, gyroY, gyroZ, acc_pitch, acc_roll, gyro_roll,
+     gyro_pitch, gyro_yaw, roll, pitch, yaw_dmp, pitch_dmp, roll_dmp]
 
     #Create data container
     try:

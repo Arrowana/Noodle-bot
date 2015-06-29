@@ -26,15 +26,16 @@ class DataContainer(Thread):
 
 		self.s_acc=1
 		self.s_gyro=4*131*180/m.pi # sensivity+ deg to rad
-		self.N_sample=200
+		self.N_sample=500
 		self.alpha=0.98
 
 		self.start_time=rospy.Time.now()
+		self.last_time=self.start_time
 
 		self.recorded_data=["GyX","GyY","GyZ"]
 
 	def run(self):   
-		for i in range(1000):
+		while True:
 			#print("Data received")
 			data_raw=self.ser.readline()
 			#print(data_raw)
@@ -70,13 +71,11 @@ class DataContainer(Thread):
 
 	def modify(self, line, data_name):
 		length=len(self.data_dict[data_name])
-		line.set_data(range(length), self.data_dict[data_name])
+		line.set_data(range(length), self.data_dict[data_name][:length])
 		line.axes.set_xlim(0, length)
 
 		y_max=max([abs(x) for x in self.data_dict[data_name]])
 		line.axes.set_ylim(-y_max, y_max)
-
-		print(self.data_dict[data_name])
 			
 	def compute(self):
 		if self.calibrated==False and len(self.data_dict["GyX"])>self.N_sample+1:
@@ -111,7 +110,11 @@ class DataContainer(Thread):
 			self.data_dict["gyro_yaw"].append(gyro_yaw)
 
 			if (rospy.Time.now()-self.last_time).to_sec()>1.:
-				print("gyro_yaw : "+str(gyro_yaw))
+				time_elapsed=(rospy.Time.now()-self.start_time).to_sec()
+				print("================================")
+				print("Time elapsed :"+str(time_elapsed))
+				print("gyro_yaw: "+str(gyro_yaw))
+				print("drift in degrees: "+str(gyro_yaw-self.data_dict["gyro_yaw"][1]))
 				self.last_time=rospy.Time.now()
 
 	def calibrate(self):
@@ -123,23 +126,17 @@ class DataContainer(Thread):
 		self.calibrated=True
 		print("CALIBRATED")
 
-	def stop(self, signal, frame):
-		sys.exit(0)
-
 if __name__ == '__main__':
 	rospy.init_node('drift', anonymous=True)
 	print("Node initialized")
 
 	fig = plt.figure(0)
-	ax1=plt.subplot(121)
+	ax1=plt.subplot(111)
 	plt.title("gyro_yaw")
 	line_yaw, = ax1.plot([],[],label="gyro_yaw")
 
-	#Create data container
 	data=DataContainer(line_yaw)
 	data.daemon=True
-
-	signal.signal(signal.SIGINT, data.stop)
 	data.start()
 
 	anim = animation.FuncAnimation(fig, data.update, interval=50)

@@ -2,6 +2,7 @@
 
 import socket
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 from threading import Thread
 import time
 import os
@@ -15,27 +16,31 @@ BUFFER_SIZE = 1024
 MESSAGE = "Hello, World!"
 
 class DataReceiver(Thread):
-    def __init__(self, line):
+    def __init__(self, lines):
         Thread.__init__(self)
 
         # Interval between sensing
-        dt = 100
+        self.dt = 100
 
-        self.line=line
+        #data_dict contains arrays of data
+        self.data_dict={}
+        self.lines=lines
 
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.connect((TCP_IP, TCP_PORT))
 
     def update(self, frameNum):
-        data_name="acc_x"
-        self.modify(self.line, data_name)
+        for line in self.lines:
+            data_name=line.get_label()
+            if data_name in self.data_dict:
+                self.modify(line, data_name)
 
     def modify(self, line, data_name):
         #Plot only N_values
-        length=200
+        length=30
 
         if(len(self.data_dict[data_name])>length):
-            line.set_data(range(length),self.data_dict[data_name][-length:])
+            line.set_data(range(length), self.data_dict[data_name][-length:])
             line.axes.set_xlim(0, length)
 
             y_max=max([abs(x) for x in self.data_dict[data_name]])
@@ -53,25 +58,25 @@ class DataReceiver(Thread):
 
         def gyroscope(y, p, r):
             print "gyrp: ", y, p, r
-            gyro_yaw.append(y)
-            gyro_pitch.append(p)
-            gyro_roll.append(r)
+            self.data_dict["gyro_x"].append(r)
+            self.data_dict["gyro_y"].append(p)
+            self.data_dict["gyro_z"].append(y)
 
         def accelerometer(x, y, z):
             print "acc: ", x, y, z
-            accelerometer_x.append(x)
-            accelerometer_y.append(y)
-            accelerometer_z.append(z)
+            self.data_dict["acc_x"].append(x)
+            self.data_dict["acc_y"].append(y)
+            self.data_dict["acc_z"].append(z)
 
         fmt = struct.Struct('2B 3h')
 
         # data define
-        self.gyro_yaw = []
-        self.gyro_pitch = []
-        self.gyro_roll = []
-        self.accelerometer_x = []
-        self.accelerometer_y = []
-        self.accelerometer_z = []
+        self.data_dict["gyro_x"] = []
+        self.data_dict["gyro_y"] = []
+        self.data_dict["gyro_z"] = []
+        self.data_dict["acc_x"] = []
+        self.data_dict["acc_y"] = []
+        self.data_dict["acc_z"] = []
 
         handler = {
             0x17: accelerometer,
@@ -94,25 +99,29 @@ class DataReceiver(Thread):
                 print "resource not ready"
                 continue
 
-            x = gyro_yaw
-            y = gyro_pitch
-            z = gyro_roll
-            a = accelerometer_x
-            b = accelerometer_y
-            c = accelerometer_z
+            time.sleep(self.dt / 1000.0)
 
-            if x and y and z and a and b and c:
-                #chart.plot(x, y, z, a, b, c)
-                time.sleep(dt / 1000.0)
         self.s.close()
 
 if __name__ == '__main__':
     fig = plt.figure(0)
-    ax1=plt.subplot(331)
+
+    ax1=plt.subplot(121)
     plt.title("acc calibrated")
     acc_x, = ax1.plot([],[],label="acc_x")
+    acc_y, = ax1.plot([],[],label="acc_y")
+    acc_z, = ax1.plot([],[],label="acc_z")
 
-    data_rc=DataReceiver(acc_x)
+    ax2=plt.subplot(122)
+    plt.title("gyro calibrated")
+    gyro_x, = ax2.plot([],[], label="gyro_x")
+    gyro_y, = ax2.plot([],[], label="gyro_y")
+    gyro_z, = ax2.plot([],[], label="gyro_z")
+
+    lines=[acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z]
+
+    data_rc=DataReceiver(lines)
+    data_rc.daemon=True
     data_rc.start()
 
     anim = animation.FuncAnimation(fig, data_rc.update, interval=50)

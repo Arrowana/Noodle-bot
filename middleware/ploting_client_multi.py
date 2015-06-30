@@ -10,7 +10,7 @@ import fcntl
 import struct
 import numpy as np
 
-TCP_IP = '192.168.1.147'
+TCP_IP = '192.168.1.145'
 TCP_PORT = 5005
 BUFFER_SIZE = 1024
 MESSAGE = "Hello, World!"
@@ -37,7 +37,7 @@ class DataReceiver(Thread):
 
     def modify(self, line, data_name):
         #Plot only N_values
-        length=30
+        length=100
 
         if(len(self.data_dict[data_name])>length):
             line.set_data(range(length), self.data_dict[data_name][-length:])
@@ -56,8 +56,8 @@ class DataReceiver(Thread):
             sub_bs = bs[idx: idx + head_byte + length]
             return len(sub_bs), sub_bs
 
-        def gyroscope(y, p, r):
-            print "gyrp: ", y, p, r
+        def gyroscope(r, p, y):
+            print "gyro: ", r, p, y
             self.data_dict["gyro_x"].append(r)
             self.data_dict["gyro_y"].append(p)
             self.data_dict["gyro_z"].append(y)
@@ -68,7 +68,13 @@ class DataReceiver(Thread):
             self.data_dict["acc_y"].append(y)
             self.data_dict["acc_z"].append(z)
 
+        def fused(r,p,y):
+            print "roll, pitch, yaw: ", r, p, y
+            self.data_dict["roll"].append(r)
+            self.data_dict["pitch"].append(p)
+
         fmt = struct.Struct('2B 3h')
+        fmt2 = struct.Struct('2B 3f')
 
         # data define
         self.data_dict["gyro_x"] = []
@@ -78,9 +84,13 @@ class DataReceiver(Thread):
         self.data_dict["acc_y"] = []
         self.data_dict["acc_z"] = []
 
+        self.data_dict["roll"]=[]
+        self.data_dict["pitch"]=[]
+
         handler = {
             0x17: accelerometer,
             0x18: gyroscope,
+            0x19: fused,
         }
 
         # Start receiving loop
@@ -92,7 +102,18 @@ class DataReceiver(Thread):
                 while idx < len(raw):
                     length, data = parse(raw, idx)
                     idx += length
+
+                    field1 = struct.unpack('B',data[0])
+                    print field1
+
+                    #print struct.unpack('=f', data[2:6])
+                    #print struct.unpack('=f',data[6:10])
+                    #print struct.unpack('=f',data[10:14])
+                    #print struct.unpack("2B3f", data)
+
                     cmd, length, x, y, z = fmt.unpack(data)
+                    print "cmd ", cmd
+
                     handler[cmd](x, y, z)
                 print "============="
             except Exception as e:
@@ -106,19 +127,27 @@ class DataReceiver(Thread):
 if __name__ == '__main__':
     fig = plt.figure(0)
 
-    ax1=plt.subplot(121)
+    ax1=plt.subplot(221)
     plt.title("acc calibrated")
     acc_x, = ax1.plot([],[],label="acc_x")
     acc_y, = ax1.plot([],[],label="acc_y")
     acc_z, = ax1.plot([],[],label="acc_z")
 
-    ax2=plt.subplot(122)
+    ax2=plt.subplot(222)
     plt.title("gyro calibrated")
     gyro_x, = ax2.plot([],[], label="gyro_x")
     gyro_y, = ax2.plot([],[], label="gyro_y")
     gyro_z, = ax2.plot([],[], label="gyro_z")
 
-    lines=[acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z]
+    ax3=plt.subplot(223)
+    plt.title("roll")
+    roll, = ax3.plot([],[], label="roll")
+
+    ax5=plt.subplot(224)
+    plt.title("pitch")
+    pitch, = ax5.plot([],[], label="pitch")
+
+    lines=[acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, roll, pitch]
 
     data_rc=DataReceiver(lines)
     data_rc.daemon=True

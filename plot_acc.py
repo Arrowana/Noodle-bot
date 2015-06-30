@@ -30,7 +30,10 @@ class DataContainer(Thread):
         self.s_acc=1
         self.s_gyro=4*131*180/m.pi # sensivity+ deg to rad
         self.N_sample=200
-        self.alpha=0.98 #tau/(tau+dt)
+        self.alpha=0.98
+
+        self.lp_alpha=0.99 # alpha=Tf/(Tf+Ts) Tf time constant Ts sampling period. Ts=0.020
+        self.low_pass=False
 
         self.imu_raw_pub = rospy.Publisher('imu_raw', Imu, queue_size=10)
         self.imu_filtered_pub = rospy.Publisher('imu_filtered', Imu, queue_size=10)
@@ -43,10 +46,10 @@ class DataContainer(Thread):
             line.set_data(range(length),self.data_dict[data_name][-length:])
             line.axes.set_xlim(0, length)
 
-            if(data_name != "acc_pitch" and data_name != "gyro_pitch" and data_name != "pitch"):
-                # y_max as to check with other values on axes
-                y_max=max([abs(x) for x in self.data_dict[data_name]])
-                line.axes.set_ylim(-y_max, y_max)
+            #if(data_name != "acc_pitch" and data_name != "gyro_pitch" and data_name != "pitch"):
+            # y_max as to check with other values on axes
+            y_max=max([abs(x) for x in self.data_dict[data_name]])
+            line.axes.set_ylim(-y_max, y_max)
 
     def update(self, frameNum):
         for line in self.lines:
@@ -89,7 +92,7 @@ class DataContainer(Thread):
         imu_msg=Imu()
         imu_msg.header.stamp=rospy.Time.now()
         imu_msg.header.frame_id="map"
-        quat=quaternion_from_euler(-self.data_dict["acc_roll"][-1], self.data_dict["acc_pitch"][-1],self.data_dict["gyro_yaw"][-1])
+        quat=quaternion_from_euler(-m.pi*self.data_dict["acc_roll"][-1]/180, m.pi*self.data_dict["acc_pitch"][-1]/180, m.pi*self.data_dict["gyro_yaw"][-1]/180)
         imu_msg.orientation.x=quat[0]
         imu_msg.orientation.y=quat[1]
         imu_msg.orientation.z=quat[2]
@@ -97,7 +100,7 @@ class DataContainer(Thread):
 
         self.imu_raw_pub.publish(imu_msg)
 
-        quat=quaternion_from_euler(-self.data_dict["roll"][-1], self.data_dict["pitch"][-1],self.data_dict["gyro_yaw"][-1])
+        quat=quaternion_from_euler(-m.pi*self.data_dict["roll"][-1]/180, m.pi*self.data_dict["pitch"][-1]/180, m.pi*self.data_dict["gyro_yaw"][-1]/180)
         imu_msg.orientation.x=quat[0]
         imu_msg.orientation.y=quat[1]
         imu_msg.orientation.z=quat[2]
@@ -109,9 +112,9 @@ class DataContainer(Thread):
         if self.calibrated==False and len(self.data_dict["AcX"])>self.N_sample+1:
             self.calibrate()
 
-            self.data_dict["acc_x"]=[]
-            self.data_dict["acc_y"]=[]
-            self.data_dict["acc_z"]=[]
+            self.data_dict["acc_x"]=[0]
+            self.data_dict["acc_y"]=[0]
+            self.data_dict["acc_z"]=[0]
 
             self.data_dict["gyro_x"]=[]
             self.data_dict["gyro_y"]=[]
@@ -128,13 +131,21 @@ class DataContainer(Thread):
             self.data_dict["pitch"]=[0]
 
         if self.calibrated==True:
-            dt=0.02
+            dt=0.05
 
             acc_x=(self.data_dict["AcX"][-1]-self.acc_x_cal)/self.s_acc
+            if self.low_pass:
+                acc_x=self.lp_alpha*self.data_dict["acc_x"][-1]+(1-self.lp_alpha)*acc_x
             self.data_dict["acc_x"].append(acc_x)
+
             acc_y=(self.data_dict["AcY"][-1]-self.acc_y_cal)/self.s_acc
+            if self.low_pass:
+                acc_y=self.lp_alpha*self.data_dict["acc_y"][-1]+(1-self.lp_alpha)*acc_y
             self.data_dict["acc_y"].append(acc_y)
+
             acc_z=(self.data_dict["AcZ"][-1]-self.acc_z_cal)/self.s_acc
+            if self.low_pass:
+                acc_z=self.lp_alpha*self.data_dict["acc_z"][-1]+(1-self.lp_alpha)*acc_z
             self.data_dict["acc_z"].append(acc_z)
             
             gyro_x=(self.data_dict["GyX"][-1]-self.gyro_x_cal)/self.s_gyro
@@ -171,18 +182,14 @@ class DataContainer(Thread):
 
             last_pitch=self.data_dict["pitch"][-1]
             pitch=self.alpha*(last_pitch+180.*gyro_y*dt/m.pi)+(1-self.alpha)*acc_pitch
-            #pitch=(self.alpha*(last_pitch+gyro_y*dt)+(1-self.alpha)*acc_pitch)
             self.data_dict["pitch"].append(pitch)
 
             sample_size=100
             if(len(self.data_dict["GyX"])==sample_size):
                 drift=abs(self.data_dict["GyX"][-1]-self.data_dict["GyX"][0])/(1000*dt)
                 print("drift : "+str(drift))
-            #elif(len(self.data_dict["GyX"])<sample_size):
-            #print("GyX : "+str(self.data_dict["GyX"][-1]))
-            #print("gyro_pitch : "+ str(gyro_y))
 
-            #self.publish_ros()
+            self.publish_ros()
             #self.clean_data_dict()
 
     def clean_data_dict(self):

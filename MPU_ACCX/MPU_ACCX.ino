@@ -76,5 +76,5 @@ void loop(){
   Serial.println((B00011000 & Wire.read())>>3);
   
   
-  delay(20);
+  delay(50);
 }

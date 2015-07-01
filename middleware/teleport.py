@@ -4,41 +4,38 @@ import fcntl
 import os
 import sys
 import struct
-import socket
+import SocketServer
+import json
 from signal import signal, SIGINT, SIG_DFL, SIGTERM
 import math as m
+import threading
+import time
 
 import rospy
 from robot.msg import *
 
-
-
 TCP_IP = '0.0.0.0'
 TCP_PORT = 5005
-BUFFER_SIZE = 20  # Normally 1024, but we want fast response
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.setblocking(0)
-s.bind((TCP_IP, TCP_PORT))
-# fcntl.fcntl(s, fcntl.F_SETFL, os.O_NONBLOCK)
-s.listen(1)
+a={"test" : 1}
+b={"test2" : str(2.0012345)}
+data_queue = [a, b, a]
 
-while True:
-    try:
-        conn, addr = s.accept()
-        break
-    except Exception as e:
-        print e
-        continue
-print 'Connection address:', addr
+class MyTCPServer(SocketServer.ThreadingTCPServer):
+    allow_reuse_address = True
 
-fmt = struct.Struct('2B 3h')
-fmt2 = struct.Struct('2B3f')
-message = [0] * 5
+class MyTCPServerHandler(SocketServer.BaseRequestHandler):
+    def handle(self):
+        while True:
+            try:
+                if data_queue:
+                    print data_queue[0]
+                    self.request.sendall(json.dumps(data_queue[0]))
+                    data_queue.pop(0)
+            except Exception, e:
+                print "Exception wile sending message: ", e
 
-data_dict={}
-
-class DataProcessor:
+class DataProcessor:          
     def __init__(self):
         self.calibrated=False
         self.data_dict={}
@@ -111,7 +108,6 @@ class DataProcessor:
             # Roll and pitch from accelerometer
             self.acc_roll=180.*m.atan2(self.acc_y, self.acc_z)/m.pi
             self.acc_pitch=-180.*m.atan2(self.acc_x, self.acc_z)/m.pi
-            print "acc_roll and acc_pitch :", self.acc_roll, self.acc_pitch
 
             # Roll, pitch and yaw from gyroscope
             self.gyro_roll+=180.*dt*self.gyro_x/m.pi
@@ -137,27 +133,22 @@ class DataProcessor:
         print("CALIBRATED")
 
     def send_computed_data(self):
-        print "gyro : ", self.gyro_x, self.gyro_y, self.gyro_z
+        #print "gyro : ", self.gyro_x, self.gyro_y, self.gyro_z
         print "rpy : ", self.roll, self.pitch, self.gyro_yaw
 
-        self.send(0x17, self.acc_x, self.acc_y, self.acc_z)
-        self.send(0x18, self.gyro_x, self.gyro_y, self.gyro_z)
-        self.send(0x19, self.roll, self.pitch, self.gyro_yaw)
+        acc_data = {"acc_x" : self.acc_x, "acc_y" : self.acc_y, "acc_z" : self.acc_z}
+        gyro_data = {"gyro_x" : self.gyro_x, "gyro_y" : self.gyro_y, "gyro_z" : self.gyro_z}
+        #rpy_data = {"roll" : self.roll, "pitch" : self.pitch, "gyro_yaw" : self.gyro_yaw}
 
-    def send(self, cmd, d1, d2, d3):
-        message[0] = cmd
-        message[1] = 6
-        message[2] = d1
-        message[3] = d2
-        message[4] = d3
-        conn.send(fmt2.pack(*message))
+        self.send(acc_data)
+        self.send(gyro_data)
+        self.send(rpy_data)
 
-        conn.send("Hello_world")
-
+    def send(self, data):
+        data_queue.append(data)
 
 def shutdown(signum=None, frame=None):
     print "shutdown", signum, frame
-    s.close()
     sys.exit(0)
 
 if __name__ == '__main__':
@@ -167,5 +158,15 @@ if __name__ == '__main__':
 
     data_proc=DataProcessor()
 
+    server = MyTCPServer(('0.0.0.0', 5005), MyTCPServerHandler)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+
     rospy.Subscriber("/msg_SPI", msg_SPI, data_proc.on_msgSPI)
+
+    time.sleep(2)
+    data_queue.append({"late" : 3})
+
+    print "Initialization passed"
     rospy.spin()

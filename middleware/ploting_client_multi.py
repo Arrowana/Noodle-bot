@@ -74,7 +74,7 @@ class DataReceiver(Thread):
             self.data_dict["pitch"].append(p)
 
         fmt = struct.Struct('2B 3h')
-        fmt2 = struct.Struct('2B 3f')
+        fmt2 = struct.Struct('>2B3f')
 
         # data define
         self.data_dict["gyro_x"] = []
@@ -103,16 +103,15 @@ class DataReceiver(Thread):
                     length, data = parse(raw, idx)
                     idx += length
 
-                    field1 = struct.unpack('B',data[0])
-                    print field1
-
-                    #print struct.unpack('=f', data[2:6])
-                    #print struct.unpack('=f',data[6:10])
+                    print(data.decode('utf-8'))
+                    print struct.unpack('B', data[0])
+                    #print struct.unpack('f',data[6:10])
                     #print struct.unpack('=f',data[10:14])
                     #print struct.unpack("2B3f", data)
 
-                    cmd, length, x, y, z = fmt.unpack(data)
+                    cmd, length, x, y, z = fmt2.unpack_from(data)
                     print "cmd ", cmd
+                    print("data unpacked properly")
 
                     handler[cmd](x, y, z)
                 print "============="

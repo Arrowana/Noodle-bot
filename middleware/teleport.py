@@ -33,7 +33,7 @@ while True:
 print 'Connection address:', addr
 
 fmt = struct.Struct('2B 3h')
-fmt2 = struct.Struct('2B 3f')
+fmt2 = struct.Struct('2B3f')
 message = [0] * 5
 
 data_dict={}
@@ -62,13 +62,22 @@ class DataProcessor:
 
 
     def on_msgSPI(self, msg):
-        self.data_dict["AcX"].append(msg.imu_acc_x)
-        self.data_dict["AcY"].append(msg.imu_acc_y)
-        self.data_dict["AcZ"].append(msg.imu_acc_z)
+        self.AcX=msg.imu_acc_x
+        self.AcY=msg.imu_acc_y
+        self.AcZ=msg.imu_acc_z
 
-        self.data_dict["GyX"].append(msg.imu_roll)
-        self.data_dict["GyY"].append(msg.imu_pitch)
-        self.data_dict["GyZ"].append(msg.imu_yaw)
+        self.GyX=msg.imu_roll
+        self.GyY=msg.imu_pitch
+        self.GyZ=msg.imu_yaw
+
+        if self.calibrated == False:
+            self.data_dict["AcX"].append(self.AcX)
+            self.data_dict["AcY"].append(self.AcY)
+            self.data_dict["AcZ"].append(self.AcZ)
+
+            self.data_dict["GyX"].append(self.GyX)
+            self.data_dict["GyY"].append(self.GyY)
+            self.data_dict["GyZ"].append(self.GyZ)
 
         self.compute()
 
@@ -76,73 +85,41 @@ class DataProcessor:
         if self.calibrated==False and len(self.data_dict["AcX"])>self.N_sample+1:
             self.calibrate()
 
-            self.data_dict["acc_x"]=[]
-            self.data_dict["acc_y"]=[]
-            self.data_dict["acc_z"]=[]
+            self.gyro_x=0
+            self.gyro_y=0
+            self.gyro_z=0
 
-            self.data_dict["gyro_x"]=[]
-            self.data_dict["gyro_y"]=[]
-            self.data_dict["gyro_z"]=[]
+            self.gyro_roll=0
+            self.gyro_pitch=0
+            self.gyro_yaw=0
 
-            self.data_dict["acc_pitch"]=[]
-            self.data_dict["acc_roll"]=[]
-
-            self.data_dict["gyro_roll"]=[0]
-            self.data_dict["gyro_pitch"]=[0]
-            self.data_dict["gyro_yaw"]=[0]
-
-            self.data_dict["roll"]=[0]
-            self.data_dict["pitch"]=[0]
+            self.roll=0
+            self.pitch=0
+            self.yaw=0
 
         if self.calibrated==True:
             dt=0.05
 
-            acc_x=(self.data_dict["AcX"][-1]-self.acc_x_cal)/self.s_acc
-            if self.low_pass:
-                acc_x=self.lp_alpha*self.data_dict["acc_x"][-1]+(1-self.lp_alpha)*acc_x
-            self.data_dict["acc_x"].append(acc_x)
-
-            acc_y=(self.data_dict["AcY"][-1]-self.acc_y_cal)/self.s_acc
-            if self.low_pass:
-                acc_y=self.lp_alpha*self.data_dict["acc_y"][-1]+(1-self.lp_alpha)*acc_y
-            self.data_dict["acc_y"].append(acc_y)
-
-            acc_z=(self.data_dict["AcZ"][-1]-self.acc_z_cal)/self.s_acc
-            if self.low_pass:
-                acc_z=self.lp_alpha*self.data_dict["acc_z"][-1]+(1-self.lp_alpha)*acc_z
-            self.data_dict["acc_z"].append(acc_z)
+            self.acc_x=(self.AcX-self.acc_x_cal)/self.s_acc
+            self.acc_y=(self.AcY-self.acc_y_cal)/self.s_acc
+            self.acc_z=(self.AcZ-self.acc_z_cal)/self.s_acc
             
-            gyro_x=(self.data_dict["GyX"][-1]-self.gyro_x_cal)/self.s_gyro
-            self.data_dict["gyro_x"].append(gyro_x)
-            gyro_y=(self.data_dict["GyY"][-1]-self.gyro_y_cal)/self.s_gyro
-            self.data_dict["gyro_y"].append(gyro_y)
-            gyro_z=(self.data_dict["GyZ"][-1]-self.gyro_z_cal)/self.s_gyro
-            self.data_dict["gyro_z"].append(gyro_z)
+            self.gyro_x=(self.GyX-self.gyro_x_cal)/self.s_gyro
+            self.gyro_y=(self.GyY-self.gyro_y_cal)/self.s_gyro
+            self.gyro_z=(self.GyZ-self.gyro_z_cal)/self.s_gyro
 
             # Roll and pitch from accelerometer
-            acc_roll=180.*m.atan2(acc_y, acc_z)/m.pi
-            self.data_dict["acc_roll"].append(acc_roll)
-
-            acc_pitch=-180.*m.atan2(acc_x,acc_z)/m.pi
-            self.data_dict["acc_pitch"].append(acc_pitch)
+            self.acc_roll=180.*m.atan2(self.acc_y, self.acc_z)/m.pi
+            self.acc_pitch=-180.*m.atan2(self.acc_x, self.acc_z)/m.pi
+            print "acc_roll and acc_pitch :", self.acc_roll, self.acc_pitch
 
             # Roll, pitch and yaw from gyroscope
-            gyro_roll=self.data_dict["gyro_roll"][-1]+180.*dt*gyro_x/m.pi
-            self.data_dict["gyro_roll"].append(gyro_roll)
-            
-            gyro_pitch=self.data_dict["gyro_pitch"][-1]+180.*dt*gyro_y/m.pi
-            self.data_dict["gyro_pitch"].append(gyro_pitch)
+            self.gyro_roll+=180.*dt*self.gyro_x/m.pi
+            self.gyro_pitch+=180.*dt*self.gyro_y/m.pi
+            self.gyro_yaw+=180.*dt*self.gyro_z/m.pi
 
-            gyro_yaw=self.data_dict["gyro_yaw"][-1]+180.*dt*gyro_z/m.pi
-            self.data_dict["gyro_yaw"].append(gyro_yaw)
-
-            last_roll=self.data_dict["roll"][-1]
-            roll=self.alpha*(last_roll+180.*gyro_x*dt/m.pi)+(1-self.alpha)*acc_roll
-            self.data_dict["roll"].append(roll)
-
-            last_pitch=self.data_dict["pitch"][-1]
-            pitch=self.alpha*(last_pitch+180.*gyro_y*dt/m.pi)+(1-self.alpha)*acc_pitch
-            self.data_dict["pitch"].append(pitch)
+            self.roll=self.alpha*(self.roll+180.*self.gyro_x*dt/m.pi)+(1-self.alpha)*self.acc_roll
+            self.pitch=self.alpha*(self.pitch+180.*self.gyro_y*dt/m.pi)+(1-self.alpha)*self.acc_pitch
 
             self.send_computed_data()
 
@@ -160,12 +137,12 @@ class DataProcessor:
         print("CALIBRATED")
 
     def send_computed_data(self):
-        print "gyro : ",self.data_dict["gyro_x"][-1], self.data_dict["gyro_y"][-1], self.data_dict["gyro_z"][-1]
-        print "rpy : ", self.data_dict["roll"][-1], self.data_dict["pitch"][-1], self.data_dict["gyro_yaw"][-1]
+        print "gyro : ", self.gyro_x, self.gyro_y, self.gyro_z
+        print "rpy : ", self.roll, self.pitch, self.gyro_yaw
 
-        self.send(0x17, self.data_dict["acc_x"][-1], self.data_dict["acc_y"][-1], self.data_dict["acc_z"][-1])
-        #self.send(0x18, self.data_dict["gyro_x"][-1], self.data_dict["gyro_y"][-1], self.data_dict["gyro_z"][-1])
-        #self.send(0x19, self.data_dict["roll"][-1], self.data_dict["pitch"][-1], self.data_dict["gyro_yaw"][-1])
+        self.send(0x17, self.acc_x, self.acc_y, self.acc_z)
+        self.send(0x18, self.gyro_x, self.gyro_y, self.gyro_z)
+        self.send(0x19, self.roll, self.pitch, self.gyro_yaw)
 
     def send(self, cmd, d1, d2, d3):
         message[0] = cmd
@@ -173,8 +150,9 @@ class DataProcessor:
         message[2] = d1
         message[3] = d2
         message[4] = d3
-        conn.send(fmt.pack(*message))
-        print(fmt.pack(*message))
+        conn.send(fmt2.pack(*message))
+
+        conn.send("Hello_world")
 
 
 def shutdown(signum=None, frame=None):

@@ -2,12 +2,11 @@
 import fcntl
 import os
 import sys
-import struct
-import SocketServer
+import socket
 import json
 from signal import signal, SIGINT, SIG_DFL, SIGTERM
 import math as m
-import threading
+from threading import Thread
 import time
 
 import rospy
@@ -15,30 +14,16 @@ from robot.msg import *
 
 TCP_IP = '0.0.0.0'
 TCP_PORT = 5005
+BUFFER_SIZE = 1024
 
-a={"test" : 1}
-b={"test2" : str(2.0012345)}
+a=str({"test" : 1})
+b=str({"test2" : 2.0012345})
 data_queue = [a, b, a]
-
-class MyTCPServer(SocketServer.ThreadingTCPServer):
-    allow_reuse_address = True
-
-class MyTCPServerHandler(SocketServer.BaseRequestHandler):
-    def handle(self):
-        while True:
-            try:
-                if data_queue:
-                    print data_queue[0]
-                    self.request.sendall(json.dumps(data_queue[0]))
-                    data_queue.pop(0)
-            except Exception, e:
-                print "Exception wile sending message: ", e
 
 class DataProcessor:          
     def __init__(self):
         self.calibrated=False
         self.data_dict={}
-        self.setup_dict()
 
         self.s_acc=1
         self.s_gyro=4*131*180/m.pi # sensivity+ deg to rad
@@ -46,6 +31,8 @@ class DataProcessor:
         self.alpha=0.98
 
         self.low_pass=False
+
+        self.setup_dict()
 
     def setup_dict(self):
         self.data_dict["AcX"]=[]
@@ -137,14 +124,28 @@ class DataProcessor:
 
         acc_data = {"acc_x" : self.acc_x, "acc_y" : self.acc_y, "acc_z" : self.acc_z}
         gyro_data = {"gyro_x" : self.gyro_x, "gyro_y" : self.gyro_y, "gyro_z" : self.gyro_z}
-        #rpy_data = {"roll" : self.roll, "pitch" : self.pitch, "gyro_yaw" : self.gyro_yaw}
+        rpy_data = {"roll" : self.roll, "pitch" : self.pitch, "gyro_yaw" : self.gyro_yaw}
 
         self.send(acc_data)
         self.send(gyro_data)
         self.send(rpy_data)
 
     def send(self, data):
+        print(data)
         data_queue.append(data)
+
+class DataSender(Thread):
+    def __init__(self, connection):
+        Thread.__init__(self)
+        self.conn = connection
+
+    def run(self):   
+        while True:
+            if data_queue:
+                self.conn.send(json.dumps(data_queue[0]))
+                data_queue.pop(0)
+            #Cap speed
+            time.sleep(0.04)
 
 def shutdown(signum=None, frame=None):
     print "shutdown", signum, frame
@@ -157,10 +158,19 @@ if __name__ == '__main__':
 
     data_proc=DataProcessor()
 
-    server = MyTCPServer(('0.0.0.0', 5005), MyTCPServerHandler)
-    server_thread = threading.Thread(target=server.serve_forever)
-    server_thread.daemon = True
-    server_thread.start()
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind((TCP_IP, TCP_PORT))
+    server_socket.listen(1)
+
+    conn, addr = server_socket.accept()
+    print 'Connection address:', addr
+    #Handshake
+    data = conn.recv(BUFFER_SIZE)
+
+    data_sender = DataSender(conn)
+    data_sender.daemon=True
+    data_sender.start()
 
     rospy.Subscriber("/msg_SPI", msg_SPI, data_proc.on_msgSPI)
 

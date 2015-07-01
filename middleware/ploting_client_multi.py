@@ -10,7 +10,7 @@ import fcntl
 import struct
 import numpy as np
 
-TCP_IP = '192.168.1.145'
+TCP_IP = '192.168.1.140'
 TCP_PORT = 5005
 BUFFER_SIZE = 1024
 MESSAGE = "Hello, World!"
@@ -47,34 +47,17 @@ class DataReceiver(Thread):
             line.axes.set_ylim(-y_max, y_max)
 
     def run(self):
-        def parse(bs, idx=0):
-            """format: |cmd|length|data|data|
-                       |fixed leng|
-            """
-            head_byte = 2
-            length = ord(bs[idx+1])
-            sub_bs = bs[idx: idx + head_byte + length]
-            return len(sub_bs), sub_bs
+        def parse(data):
+            start=data.index("{")
+            stop=data.index("}")+1
+            json_string = data[start:stop]
+            received_dict = json.loads(json_string)
 
-        def gyroscope(r, p, y):
-            print "gyro: ", r, p, y
-            self.data_dict["gyro_x"].append(r)
-            self.data_dict["gyro_y"].append(p)
-            self.data_dict["gyro_z"].append(y)
+            print "received_dict", received_dict
 
-        def accelerometer(x, y, z):
-            print "acc: ", x, y, z
-            self.data_dict["acc_x"].append(x)
-            self.data_dict["acc_y"].append(y)
-            self.data_dict["acc_z"].append(z)
-
-        def fused(r,p,y):
-            print "roll, pitch, yaw: ", r, p, y
-            self.data_dict["roll"].append(r)
-            self.data_dict["pitch"].append(p)
-
-        fmt = struct.Struct('2B 3h')
-        fmt2 = struct.Struct('>2B3f')
+            for data_name in received_dict.keys():
+                print("add data to data_dict")
+                self.data_dict[data_name].append(received_dict[data_name])
 
         # data define
         self.data_dict["gyro_x"] = []
@@ -86,40 +69,19 @@ class DataReceiver(Thread):
 
         self.data_dict["roll"]=[]
         self.data_dict["pitch"]=[]
-
-        handler = {
-            0x17: accelerometer,
-            0x18: gyroscope,
-            0x19: fused,
-        }
+        self.s.send("Hi")
 
         # Start receiving loop
         while True:
-            raw = ''
             try:
-                raw = self.s.recv(BUFFER_SIZE)
-                idx = 0
-                while idx < len(raw):
-                    length, data = parse(raw, idx)
-                    idx += length
-
-                    print(data.decode('utf-8'))
-                    print struct.unpack('B', data[0])
-                    #print struct.unpack('f',data[6:10])
-                    #print struct.unpack('=f',data[10:14])
-                    #print struct.unpack("2B3f", data)
-
-                    cmd, length, x, y, z = fmt2.unpack_from(data)
-                    print "cmd ", cmd
-                    print("data unpacked properly")
-
-                    handler[cmd](x, y, z)
-                print "============="
+                data=self.s.recv(BUFFER_SIZE)
+                print "received data:", data
+                parse(data)
             except Exception as e:
                 print "resource not ready"
                 continue
 
-            time.sleep(self.dt / 1000.0)
+            time.sleep(0.01)
 
         self.s.close()
 

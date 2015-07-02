@@ -24,6 +24,8 @@ class DataProcessor:
         self.calibrated=False
         self.data_dict={}
 
+        self.last_update = rospy.Time.now()
+
         self.s_acc=1
         self.s_gyro=4*131*180/m.pi # sensivity+ deg to rad
         self.N_sample=50
@@ -118,36 +120,56 @@ class DataProcessor:
         print("CALIBRATED")
 
     def send_computed_data(self):
-        #print "gyro : ", self.gyro_x, self.gyro_y, self.gyro_z
-        #print "rpy : ", self.roll, self.pitch, self.gyro_yaw
+        acc_data = {"acc_x":self.acc_x, "acc_y":self.acc_y,"acc_z":self.acc_z}
+        acc_rpy_data = {"acc_roll":self.acc_roll,"acc_pitch":self.acc_pitch}
+        gyro_data = {"gyro_x":self.gyro_x,"gyro_y":self.gyro_y,"gyro_z":self.gyro_z}
+        gyro_rpy_data = {"gyro_roll":self.gyro_roll,"gyro_pitch":self.gyro_pitch}
+        rpy_data = {"roll":self.roll,"pitch":self.pitch,"gyro_yaw":self.gyro_yaw}
 
-        acc_data = {"acc_x" : self.acc_x, "acc_y" : self.acc_y, "acc_z" : self.acc_z}
-        gyro_data = {"gyro_x" : self.gyro_x, "gyro_y" : self.gyro_y, "gyro_z" : self.gyro_z}
-        rpy_data = {"roll" : self.roll, "pitch" : self.pitch, "gyro_yaw" : self.gyro_yaw}
+        # Lower update of values
+        if (rospy.Time.now()-self.last_update).to_sec()>0.2:
+            print "roll:",self.roll,"pitch:",self.pitch
 
-        self.send(acc_data)
-        self.send(gyro_data)
-        self.send(rpy_data)
+            self.send(acc_data)
+            self.send(acc_rpy_data)
+            self.send(gyro_data)
+            self.send(gyro_rpy_data)
+            self.send(rpy_data)
+
+            self.last_update = rospy.Time.now()
 
     def send(self, data):
-        print(data)
         data_queue.append(data)
 
 class DataSender(Thread):
-    def __init__(self, connection):
+    def __init__(self):
         Thread.__init__(self)
-        self.conn = connection
 
     def run(self):
-        message = {"dwada" : random.random(), "bbbb" : random.random(), "wwww" : random.random()}   
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.bind((TCP_IP, TCP_PORT))
+        server_socket.listen(1)
+
+        self.conn, addr = server_socket.accept()
+        print 'Connection address:', addr
+        #Handshake
+        data = self.conn.recv(BUFFER_SIZE)
+        print data
+
+        del data_queue[:]
+
         while True:
             if data_queue:
                 data_to_send = json.dumps(data_queue[0])
                 print "data_sent :", data_to_send
                 self.conn.send(data_to_send)
                 data_queue.pop(0)
+
+                print "length of queue:", len(data_queue)
+
             #Cap speed
-            time.sleep(0.04)
+            #time.sleep(0.05)
 
 def shutdown(signum=None, frame=None):
     print "shutdown", signum, frame
@@ -160,23 +182,11 @@ if __name__ == '__main__':
 
     data_proc=DataProcessor()
 
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((TCP_IP, TCP_PORT))
-    server_socket.listen(1)
-
-    conn, addr = server_socket.accept()
-    print 'Connection address:', addr
-    #Handshake
-    data = conn.recv(BUFFER_SIZE)
-
-    data_sender = DataSender(conn)
+    data_sender = DataSender()
     data_sender.daemon=True
     data_sender.start()
 
     rospy.Subscriber("/msg_SPI", msg_SPI, data_proc.on_msgSPI)
-
-    time.sleep(2)
 
     print "Initialization passed"
     rospy.spin()

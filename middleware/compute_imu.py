@@ -27,8 +27,8 @@ class DataProcessor:
         self.last_update = rospy.Time.now()
 
         self.s_acc=1
-        self.s_gyro=4*131*180/m.pi # sensivity+ deg to rad
-        self.N_sample=50
+        self.s_gyro=1/131. # sensivity+ deg to rad
+        self.N_sample=100
         self.alpha=0.98
 
         self.low_pass=False
@@ -84,25 +84,25 @@ class DataProcessor:
         if self.calibrated==True:
             dt=0.05
 
-            self.acc_x=(self.AcX-self.acc_x_cal)/self.s_acc
-            self.acc_y=(self.AcY-self.acc_y_cal)/self.s_acc
-            self.acc_z=(self.AcZ-self.acc_z_cal)/self.s_acc
+            self.acc_x=(self.AcX-self.acc_x_cal)*self.s_acc
+            self.acc_y=(self.AcY-self.acc_y_cal)*self.s_acc
+            self.acc_z=(self.AcZ-self.acc_z_cal)*self.s_acc
             
-            self.gyro_x=(self.GyX-self.gyro_x_cal)/self.s_gyro
-            self.gyro_y=(self.GyY-self.gyro_y_cal)/self.s_gyro
-            self.gyro_z=(self.GyZ-self.gyro_z_cal)/self.s_gyro
+            self.gyro_x=(self.GyX-self.gyro_x_cal)*self.s_gyro
+            self.gyro_y=(self.GyY-self.gyro_y_cal)*self.s_gyro
+            self.gyro_z=(self.GyZ-self.gyro_z_cal)*self.s_gyro
 
             # Roll and pitch from accelerometer
             self.acc_roll=180.*m.atan2(self.acc_y, self.acc_z)/m.pi
             self.acc_pitch=-180.*m.atan2(self.acc_x, self.acc_z)/m.pi
 
             # Roll, pitch and yaw from gyroscope
-            self.gyro_roll+=180.*dt*self.gyro_x/m.pi
-            self.gyro_pitch+=180.*dt*self.gyro_y/m.pi
-            self.gyro_yaw+=180.*dt*self.gyro_z/m.pi
+            self.gyro_roll+=dt*self.gyro_x
+            self.gyro_pitch+=dt*self.gyro_y
+            self.gyro_yaw+=dt*self.gyro_z
 
-            self.roll=self.alpha*(self.roll+180.*self.gyro_x*dt/m.pi)+(1-self.alpha)*self.acc_roll
-            self.pitch=self.alpha*(self.pitch+180.*self.gyro_y*dt/m.pi)+(1-self.alpha)*self.acc_pitch
+            self.roll=self.alpha*(self.roll+self.gyro_x*dt)+(1-self.alpha)*self.acc_roll
+            self.pitch=self.alpha*(self.pitch+self.gyro_y*dt)+(1-self.alpha)*self.acc_pitch
 
             self.send_computed_data()
 
@@ -128,7 +128,7 @@ class DataProcessor:
 
         # Lower update of values
         if (rospy.Time.now()-self.last_update).to_sec()>0.2:
-            print "roll:",self.roll,"pitch:",self.pitch
+            print "roll:",self.roll,"pitch:",self.pitch,"gyro_yaw", self.gyro_yaw
 
             self.send(acc_data)
             self.send(acc_rpy_data)
@@ -167,7 +167,6 @@ class DataSender(Thread):
                 data_queue.pop(0)
 
                 print "length of queue:", len(data_queue)
-
             #Cap speed
             #time.sleep(0.05)
 

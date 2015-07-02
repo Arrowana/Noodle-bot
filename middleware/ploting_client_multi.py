@@ -17,15 +17,15 @@ BUFFER_SIZE = 1024
 MESSAGE = "Hello, World!"
 
 class DataReceiver(Thread):
-    def __init__(self, lines):
+    def __init__(self, axes):
         Thread.__init__(self)
 
         # Interval between sensing
         self.dt = 100
 
-        #data_dict contains arrays of data
+        # data_dict contains arrays of data
         self.data_dict={}
-        self.lines=lines
+        self.axes=axes
 
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.connect((TCP_IP, TCP_PORT))
@@ -33,11 +33,24 @@ class DataReceiver(Thread):
         print "Connected"
 
     def update(self, frameNum):
-        for line in self.lines:
-            data_name=line.get_label()
-            if data_name in self.data_dict:
-                if self.data_dict[data_name]:
-                    self.modify(line, data_name)
+        # For each axis iterate through each line to set the data
+        for axe in self.axes:
+            y_max_list=[]
+            isData=False
+
+            for line in axe.get_lines():
+                data_name=line.get_label()
+
+                if data_name in self.data_dict:
+                    if self.data_dict[data_name]:
+                        y_max=self.modify(line, data_name)
+                        y_max_list.append(y_max)
+
+                        isData=True
+            if isData:
+                # Set ylim to the max of y data in the graph
+                global_max=max(y_max_list)
+                axe.set_ylim(-global_max, global_max) 
 
     def modify(self, line, data_name):
         #Plot only N_values
@@ -49,9 +62,8 @@ class DataReceiver(Thread):
 
         line.set_data(range(length), self.data_dict[data_name][-length:])
         line.axes.set_xlim(0, length)
-
         y_max=max([abs(x) for x in self.data_dict[data_name]])
-        #line.axes.set_ylim(-y_max, y_max)
+        return y_max
 
     def parse(self, data):
         while len(data)>0:
@@ -118,45 +130,43 @@ class DataReceiver(Thread):
 if __name__ == '__main__':
     fig = plt.figure(0)
 
-    ax1=plt.subplot(331)
+    ax_acc=plt.subplot(331)
     plt.title("acc calibrated")
-    acc_x, = ax1.plot([],[],label="acc_x")
-    acc_y, = ax1.plot([],[],label="acc_y")
-    acc_z, = ax1.plot([],[],label="acc_z")
+    ax_acc.plot([],[],label="acc_x")
+    ax_acc.plot([],[],label="acc_y")
+    ax_acc.plot([],[],label="acc_z")
 
-    ax2=plt.subplot(332)
+    ax_gyro=plt.subplot(332)
     plt.title("gyro calibrated")
-    gyro_x, = ax2.plot([],[], label="gyro_x")
-    gyro_y, = ax2.plot([],[], label="gyro_y")
-    gyro_z, = ax2.plot([],[], label="gyro_z")
+    ax_gyro.plot([],[], label="gyro_x")
+    ax_gyro.plot([],[], label="gyro_y")
+    ax_gyro.plot([],[], label="gyro_z")
 
-    ax3=plt.subplot(333)
+    ax_roll_comb=plt.subplot(333)
     plt.title("acc_roll, gyro_roll and roll")
-    acc_roll, = ax3.plot([],[], label="acc_roll")
-    gyro_roll, = ax3.plot([],[], label="gyro_roll")
+    ax_roll_comb.plot([],[], label="acc_roll")
+    ax_roll_comb.plot([],[], label="gyro_roll")
 
-    ax5=plt.subplot(334)
+    ax_pitch_comb=plt.subplot(334)
     plt.title("acc_pitch, gyro_pitch and pitch")
-    acc_pitch, = ax5.plot([],[], label="acc_pitch")
-    gyro_pitch, = ax5.plot([],[], label="gyro_pitch")
-    ax5.autoscale_view(True, 'y')
+    ax_pitch_comb.plot([],[], label="acc_pitch")
+    ax_pitch_comb.plot([],[], label="gyro_pitch")
 
-    ax6=plt.subplot(335)
+    ax_roll=plt.subplot(335)
     plt.title("roll")
-    roll, = ax6.plot([],[], label="roll")
+    ax_roll.plot([],[], label="roll")
 
-    ax7=plt.subplot(336)
+    ax_pitch=plt.subplot(336)
     plt.title("pitch")
-    pitch, = ax7.plot([],[], label="pitch")
+    ax_pitch.plot([],[], label="pitch")
 
-    ax9=plt.subplot(338)
+    ax_yaw=plt.subplot(338)
     plt.title("gyro_yaw")
-    gyro_yaw, = ax9.plot([],[], label="gyro_yaw")
+    ax_yaw.plot([],[], label="gyro_yaw")
 
-    lines=[acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, acc_pitch, acc_roll, gyro_roll,
-     gyro_pitch, gyro_yaw, roll, pitch]
+    axes=[ax_acc, ax_gyro, ax_roll_comb, ax_pitch_comb, ax_roll, ax_pitch, ax_yaw]
 
-    data_rc=DataReceiver(lines)
+    data_rc=DataReceiver(axes)
     data_rc.daemon=True
     data_rc.start()
 

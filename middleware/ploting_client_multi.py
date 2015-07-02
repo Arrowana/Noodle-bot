@@ -6,6 +6,7 @@ import matplotlib.animation as animation
 from threading import Thread
 import time
 import os
+import json
 import fcntl
 import struct
 import numpy as np
@@ -48,16 +49,22 @@ class DataReceiver(Thread):
 
     def run(self):
         def parse(data):
+            print "Beginning parsing"
             start=data.index("{")
             stop=data.index("}")+1
             json_string = data[start:stop]
+
+            print "parse data :", json_string, "type :", type(json_string)
+
             received_dict = json.loads(json_string)
+            print "received_dict parsed"
 
-            print "received_dict", received_dict
+            if received_dict:
+                print "received_dict", received_dict, type(received_dict)
 
-            for data_name in received_dict.keys():
-                print("add data to data_dict")
-                self.data_dict[data_name].append(received_dict[data_name])
+                for data_name in received_dict.keys():
+                    print("add data to data_dict")
+                    self.data_dict[data_name].append(received_dict[data_name])
 
         # data define
         self.data_dict["gyro_x"] = []
@@ -66,6 +73,14 @@ class DataReceiver(Thread):
         self.data_dict["acc_x"] = []
         self.data_dict["acc_y"] = []
         self.data_dict["acc_z"] = []
+
+        self.data_dict["acc_roll"] = []
+        self.data_dict["acc_pitch"] = []
+        self.data_dict["acc_yaw"] = []
+
+        self.data_dict["gyro_roll"] = []
+        self.data_dict["gyro_pitch"] = []
+        self.data_dict["gyro_yaw"] = []
 
         self.data_dict["roll"]=[]
         self.data_dict["pitch"]=[]
@@ -76,10 +91,12 @@ class DataReceiver(Thread):
             try:
                 data=self.s.recv(BUFFER_SIZE)
                 print "received data:", data
-                parse(data)
             except Exception as e:
                 print "resource not ready"
                 continue
+
+            if data:
+                parse(data)
 
             time.sleep(0.01)
 

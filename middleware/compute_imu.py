@@ -3,6 +3,7 @@ import fcntl
 import os
 import sys
 import socket
+import random
 import json
 from signal import signal, SIGINT, SIG_DFL, SIGTERM
 import math as m
@@ -16,9 +17,7 @@ TCP_IP = '0.0.0.0'
 TCP_PORT = 5005
 BUFFER_SIZE = 1024
 
-a=str({"test" : 1})
-b=str({"test2" : 2.0012345})
-data_queue = [a, b, a]
+data_queue = []
 
 class DataProcessor:          
     def __init__(self):
@@ -120,7 +119,7 @@ class DataProcessor:
 
     def send_computed_data(self):
         #print "gyro : ", self.gyro_x, self.gyro_y, self.gyro_z
-        print "rpy : ", self.roll, self.pitch, self.gyro_yaw
+        #print "rpy : ", self.roll, self.pitch, self.gyro_yaw
 
         acc_data = {"acc_x" : self.acc_x, "acc_y" : self.acc_y, "acc_z" : self.acc_z}
         gyro_data = {"gyro_x" : self.gyro_x, "gyro_y" : self.gyro_y, "gyro_z" : self.gyro_z}
@@ -139,10 +138,13 @@ class DataSender(Thread):
         Thread.__init__(self)
         self.conn = connection
 
-    def run(self):   
+    def run(self):
+        message = {"dwada" : random.random(), "bbbb" : random.random(), "wwww" : random.random()}   
         while True:
             if data_queue:
-                self.conn.send(json.dumps(data_queue[0]))
+                data_to_send = json.dumps(data_queue[0])
+                print "data_sent :", data_to_send
+                self.conn.send(data_to_send)
                 data_queue.pop(0)
             #Cap speed
             time.sleep(0.04)
@@ -175,7 +177,6 @@ if __name__ == '__main__':
     rospy.Subscriber("/msg_SPI", msg_SPI, data_proc.on_msgSPI)
 
     time.sleep(2)
-    data_queue.append({"late" : 3})
 
     print "Initialization passed"
     rospy.spin()

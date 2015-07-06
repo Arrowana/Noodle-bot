@@ -29,7 +29,7 @@ class DataContainer(Thread):
         self.calibrated=False
 
         self.s_acc=1.
-        self.s_gyro=1./131. # sensivity
+        self.s_gyro=1./16.4 #1./131. # sensivity
         self.N_sample=150
         self.alpha=0.98
 
@@ -98,14 +98,16 @@ class DataContainer(Thread):
                     # Read value associated to data_name
                     value_raw=self.ser.readline()
                     value=float(value_raw.decode("utf-8"))
+
+                    # Store in dictionnary and add key if doesn't exist
+                    if data_name in self.data_dict:
+                        self.data_dict[data_name].append(value)
+                    else:
+                        self.data_dict[data_name]=[value]
                 except:
                     print("Unexpected format of data")
 
-                # Store in dictionnary and add key if doesn't exist
-                if data_name in self.data_dict:
-                    self.data_dict[data_name].append(value)
-                else:
-                    self.data_dict[data_name]=[value]
+
 
 
     def publish_ros(self):

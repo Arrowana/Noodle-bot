@@ -56,7 +56,7 @@ void loop(){
   Serial.println("data:AcX"); Serial.println(AcX);
   Serial.println("data:AcY"); Serial.println(AcY);
   Serial.println("data:AcZ"); Serial.println(AcZ);
-  Serial.println("data:Tmp"); Serial.println(Tmp/340.00+36.53);  //equation for temperature in degrees C from datasheet
+  //Serial.println("data:Tmp"); Serial.println(Tmp/340.00+36.53);  //equation for temperature in degrees C from datasheet
   Serial.println("data:GyX"); Serial.println(GyX);
   Serial.println("data:GyY"); Serial.println(GyY);
   Serial.println("data:GyZ"); Serial.println(GyZ);

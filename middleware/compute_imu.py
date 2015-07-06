@@ -1,21 +1,22 @@
 #!/usr/bin/python
+import rospy
+from robot.msg import *
+
 import fcntl
 import os
 import sys
 import socket
-import random
 import json
 from signal import signal, SIGINT, SIG_DFL, SIGTERM
 import math as m
 from threading import Thread
 import time
-
-import rospy
-from robot.msg import *
+from sensor_msgs.msg import Imu
 
 TCP_IP = '0.0.0.0'
 TCP_PORT = 5005
 BUFFER_SIZE = 1024
+publish_imu = False
 
 data_queue = []
 
@@ -43,7 +44,6 @@ class DataProcessor:
         self.data_dict["GyX"]=[]
         self.data_dict["GyY"]=[]
         self.data_dict["GyZ"]=[]
-
 
     def on_msgSPI(self, msg):
         self.AcX=msg.imu_acc_x
@@ -140,6 +140,16 @@ class DataProcessor:
 
     def send(self, data):
         data_queue.append(data)
+
+    def publish_imu(self):
+        imu_msg=Imu()
+        imu_msg.header.stamp=rospy.Time.now()
+        imu_msg.header.frame_id="map"
+        quat=quaternion_from_euler(-m.pi*self.data_dict["acc_roll"][-1]/180, m.pi*self.data_dict["acc_pitch"][-1]/180, m.pi*self.data_dict["gyro_yaw"][-1]/180)
+        imu_msg.orientation.x=quat[0]
+        imu_msg.orientation.y=quat[1]
+        imu_msg.orientation.z=quat[2]
+        imu_msg.orientation.w=quat[3]
 
 class DataSender(Thread):
     def __init__(self):

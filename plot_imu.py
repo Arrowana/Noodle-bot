@@ -14,6 +14,7 @@ import math as m
 
 from tf.transformations import quaternion_from_euler
 
+
 SERIALPORT="/dev/ttyUSB0"
 
 class DataContainer(Thread):
@@ -27,9 +28,9 @@ class DataContainer(Thread):
 
         self.calibrated=False
 
-        self.s_acc=1
-        self.s_gyro=1/(4*131.) # sensivity+ deg to rad
-        self.N_sample=200
+        self.s_acc=1.
+        self.s_gyro=1./131. # sensivity
+        self.N_sample=150
         self.alpha=0.98
 
         self.lp_alpha=0.99 # alpha=Tf/(Tf+Ts) Tf time constant Ts sampling period. Ts=0.020
@@ -85,21 +86,27 @@ class DataContainer(Thread):
             try:
                 header, data_name=data.split(":")
                 data_name,=data_name.splitlines()
-                # Read value associated to data_name
-                value_raw=self.ser.readline()
-                value=float(value_raw.decode("utf-8"))
             except:
-                print("Unexpected format of data")
+                print("Unexpected format for data_name")
                 return
 
-            # Store in dictionnary and add key if doesn't exist
-            if data_name in self.data_dict:
-                self.data_dict[data_name].append(value)
-            else:
-                self.data_dict[data_name]=[value]
-
-            if "AcX" in self.data_dict:
+            if data_name == "compute" and "AcX" in self.data_dict:
+                print "compute data"
                 self.compute()
+            else:
+                try:
+                    # Read value associated to data_name
+                    value_raw=self.ser.readline()
+                    value=float(value_raw.decode("utf-8"))
+                except:
+                    print("Unexpected format of data")
+
+                # Store in dictionnary and add key if doesn't exist
+                if data_name in self.data_dict:
+                    self.data_dict[data_name].append(value)
+                else:
+                    self.data_dict[data_name]=[value]
+
 
     def publish_ros(self):
         imu_msg=Imu()
@@ -122,6 +129,9 @@ class DataContainer(Thread):
         self.imu_filtered_pub.publish(imu_msg)
             
     def compute(self):
+        if self.calibrated==False and len(self.data_dict["AcX"])<self.N_sample+1:
+            print "Remaining values needed for calibration:", self.N_sample-len(self.data_dict["AcX"])
+
         if self.calibrated==False and len(self.data_dict["AcX"])>self.N_sample+1:
             self.calibrate()
 
@@ -145,6 +155,10 @@ class DataContainer(Thread):
 
         if self.calibrated==True:
             dt=0.05
+            #If time is sent use dt received
+            if "dt" in self.data_dict:
+                print "dt:", self.data_dict["dt"][-1]
+                dt=self.data_dict["dt"][-1]*0.001
 
             acc_x=(self.data_dict["AcX"][-1]-self.acc_x_cal)*self.s_acc
             if self.low_pass:
@@ -163,18 +177,17 @@ class DataContainer(Thread):
             
             gyro_x=(self.data_dict["GyX"][-1]-self.gyro_x_cal)*self.s_gyro
             self.data_dict["gyro_x"].append(gyro_x)
-            gyro_y=(self.data_dict["GyY"][-1]-self.gyro_y_cal)*self.s_gyro
+            gyro_y=-(self.data_dict["GyY"][-1]-self.gyro_y_cal)*self.s_gyro
             self.data_dict["gyro_y"].append(gyro_y)
-            gyro_z=(self.data_dict["GyZ"][-1]-self.gyro_z_cal)*self.s_gyro
+            gyro_z=-(self.data_dict["GyZ"][-1]-self.gyro_z_cal)*self.s_gyro
             self.data_dict["gyro_z"].append(gyro_z)
 
             # Roll and pitch from accelerometer
             acc_roll=180.*m.atan2(acc_y, acc_z)/m.pi
             self.data_dict["acc_roll"].append(acc_roll)
 
-            acc_pitch=-180.*m.atan2(acc_x,acc_z)/m.pi
+            acc_pitch=180.*m.atan2(acc_x,acc_z)/m.pi
             self.data_dict["acc_pitch"].append(acc_pitch)
-            #print("acc_pitch : "+str(acc_pitch))
 
             # Roll, pitch and yaw from gyroscope
             gyro_roll=self.data_dict["gyro_roll"][-1]+dt*gyro_x
@@ -184,10 +197,10 @@ class DataContainer(Thread):
             self.data_dict["gyro_pitch"].append(gyro_pitch)
 
             gyro_yaw=self.data_dict["gyro_yaw"][-1]+dt*gyro_z
-            self.data_dict["gyro_yaw"].append(gyro_yaw)
-
-            # Fusion and filtering of data
-            forceMagnitude=abs(acc_x)+abs(acc_y)+abs(acc_z)
+            self.data_dict["gyro_yaw"].append(gyro_yaw) # To have same orientation has DMP add minus
+            print "gyro_yaw:", gyro_yaw
+            if "yaw_dmp" in self.data_dict:
+                print "yaw_dmp:", self.data_dict["yaw_dmp"][-1]
 
             last_roll=self.data_dict["roll"][-1]
             roll=self.alpha*(last_roll+gyro_x*dt)+(1-self.alpha)*acc_roll
@@ -209,7 +222,7 @@ class DataContainer(Thread):
         for key in self.data_dict.keys():
             length=len(self.data_dict[key])
             if(length>400):
-                del self.data_dict[key][150:]
+                del self.data_dict[key][:150]
 
             print(length)
 
@@ -230,21 +243,6 @@ class DataContainer(Thread):
         data_list.append(random.randint(0,100))
 
 if __name__ == '__main__':
-    def debug():
-        plt.figure()
-        plt.title("acc_pitch")
-        plt.plot(data.data_dict["acc_pitch"])
-
-        plt.figure()
-        plt.title("gyro_pitch")
-        plt.plot(data.data_dict["gyro_pitch"])
-
-        plt.figure()
-        plt.title("pitch")
-        plt.plot(data.data_dict["pitch"])
-        
-        plt.show()
-
     rospy.init_node('IMU_publisher', anonymous=True)
 
     # Set up animation
@@ -274,23 +272,26 @@ if __name__ == '__main__':
     ax_pitch_comb.plot([],[], label="gyro_pitch")
     ax_pitch_comb.plot([],[], label="pitch")
 
-    ax6=plt.subplot(335)
-    plt.title("yaw_dmp")
-    ax6.plot([],[], label="yaw_dmp")
-
-    ax7=plt.subplot(336)
-    plt.title("pitch_dmp")
-    ax7.plot([],[], label="pitch_dmp")
-
-    ax8=plt.subplot(337)
-    plt.title("roll_dmp")
-    ax8.plot([],[], label="roll_dmp")
-
-    ax_yaw=plt.subplot(338)
+    ax_yaw=plt.subplot(335)
     plt.title("gyro_yaw")
     ax_yaw.plot([],[], label="gyro_yaw")
+
+    ax_roll_all=plt.subplot(337)
+    plt.title("roll and roll_dmp")
+    ax_roll_all.plot([],[], label="roll")
+    ax_roll_all.plot([],[], label="roll_dmp")
+
+    ax_pitch_all=plt.subplot(338)
+    plt.title("pitch and pitch_dmp")
+    ax_pitch_all.plot([],[], label="pitch")
+    ax_pitch_all.plot([],[], label="pitch_dmp")
+
+    ax_yaw_all=plt.subplot(339)
+    plt.title("gyro_yaw and yaw_dmp")
+    ax_yaw_all.plot([],[], label="gyro_yaw")
+    ax_yaw_all.plot([],[], label="yaw_dmp")
     
-    axes=[ax_acc, ax_gyro, ax_roll_comb, ax_pitch_comb, ax_yaw]
+    axes=[ax_acc, ax_gyro, ax_roll_comb, ax_pitch_comb, ax_yaw, ax_roll_all, ax_pitch_all, ax_yaw_all]
 
     #Create data container
     try:

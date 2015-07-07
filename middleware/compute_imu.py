@@ -31,7 +31,7 @@ class DataProcessor:
 
         self.s_acc=1
         self.s_gyro=1/131. # sensivity+ deg to rad
-        self.N_sample=50 #200
+        self.N_sample=100 #200
         self.alpha=0.98
 
         self.lp_alpha=0.99 
@@ -125,10 +125,10 @@ class DataProcessor:
             self.gyro_pitch+=dt*self.gyro_y
             self.gyro_yaw+=dt*self.gyro_z
             # Keep gyro_yaw within -180;180
-            if gyro_yaw > 180:
-                gyro_yaw = -gyro_yaw + 360
-            elif gyro_yaw < -180:
-                gyro_yaw = gyro_yaw + 360
+            if self.gyro_yaw > 185:
+                self.gyro_yaw = self.gyro_yaw - 360
+            elif self.gyro_yaw < -180:
+                self.gyro_yaw = self.gyro_yaw + 360
 
             self.roll=self.alpha*(self.roll+self.gyro_x*dt)+(1-self.alpha)*self.acc_roll
             self.pitch=self.alpha*(self.pitch+self.gyro_y*dt)+(1-self.alpha)*self.acc_pitch

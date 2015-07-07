@@ -29,7 +29,7 @@ class DataContainer(Thread):
         self.calibrated=False
 
         self.s_acc=1.
-        self.s_gyro=1./16.4 #1./131. # sensivity
+        self.s_gyro=1./16.4 #1./16.4 #1./131. # sensivity
         self.N_sample=150
         self.alpha=0.98
 

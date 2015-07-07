@@ -16,11 +16,10 @@ class Driver:
 
 		self.wheel_radius=0.105
 		self.tractor_axle_width=0.26
-
 		self.K1=5.
 
 		print "Variables ready"
-
+		
 		sub = rospy.Subscriber('imu', Imu , self.imuCallback)
 		self.velocity_pub = rospy.Publisher('msg_teleops', PlatformCmd, queue_size=10)
 

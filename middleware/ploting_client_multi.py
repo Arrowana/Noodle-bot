@@ -1,4 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/env python
+import rospy
 
 import socket
 import matplotlib.pyplot as plt
@@ -7,9 +8,10 @@ from threading import Thread
 import time
 import os
 import json
-import fcntl
-import struct
-import numpy as np
+import math as m
+
+from sensor_msgs.msg import Imu
+from tf.transformations import quaternion_from_euler
 
 TCP_IP = '192.168.1.147'
 TCP_PORT = 5005
@@ -19,13 +21,16 @@ MESSAGE = "Hello, World!"
 class DataReceiver(Thread):
     def __init__(self, axes):
         Thread.__init__(self)
+        rospy.init_node('DataRecever')
 
         # Interval between sensing
         self.dt = 100
-
-        # data_dict contains arrays of data
         self.data_dict={}
         self.axes=axes
+
+        self.cleaning=True
+
+        self.imu_pub = rospy.Publisher('imu', Imu, queue_size=10)
 
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.connect((TCP_IP, TCP_PORT))
@@ -50,7 +55,10 @@ class DataReceiver(Thread):
             if isData:
                 # Set ylim to the max of y data in the graph
                 global_max=max(y_max_list)
-                axe.set_ylim(-global_max, global_max) 
+                axe.set_ylim(-global_max, global_max)
+
+        if self.cleaning:
+            self.clean_data_dict() 
 
     def modify(self, line, data_name):
         #Plot only N_values
@@ -64,6 +72,12 @@ class DataReceiver(Thread):
         line.axes.set_xlim(0, length)
         y_max=max([abs(x) for x in self.data_dict[data_name]])
         return y_max
+
+    def clean_data_dict(self):
+        for key in self.data_dict.keys():
+            length=len(self.data_dict[key])
+            if(length>500):
+                del self.data_dict[key][:150]
 
     def parse(self, data):
         while len(data)>0:
@@ -82,12 +96,19 @@ class DataReceiver(Thread):
             # Remove found json string from data
             data=data[stop:]
 
-            print "parse data :", json_string, "type :", type(json_string)
+            #print "parse data :", json_string, "type :", type(json_string)
             received_dict = json.loads(json_string)
             if received_dict:
                 #print "received_dict", received_dict, type(received_dict)
                 for data_name in received_dict.keys():
                     self.data_dict[data_name].append(received_dict[data_name])
+
+                    if data_name in ["roll", "pitch", "gyro_yaw"]:
+                        print data_name, ":", received_dict[data_name]
+
+                    if all(len(self.data_dict[name])>0 for name in ["roll", "pitch", "gyro_yaw"]):
+                        self.publish_imu()
+
 
     def run(self):
         print "Thread started, run function"
@@ -115,7 +136,7 @@ class DataReceiver(Thread):
         while True:
             try:
                 data=self.s.recv(BUFFER_SIZE)
-                print "received data:", data
+                #print "received data:", data
             except Exception as e:
                 print "resource not ready"
                 continue
@@ -126,6 +147,18 @@ class DataReceiver(Thread):
             time.sleep(0.01)
 
         self.s.close()
+
+    def publish_imu(self):
+        imu_msg=Imu()
+        imu_msg.header.stamp=rospy.Time.now()
+        imu_msg.header.frame_id="map"
+        quat=quaternion_from_euler(-m.pi*self.data_dict["roll"][-1]/180, m.pi*self.data_dict["pitch"][-1]/180, m.pi*self.data_dict["gyro_yaw"][-1]/180)
+        imu_msg.orientation.x=quat[0]
+        imu_msg.orientation.y=quat[1]
+        imu_msg.orientation.z=quat[2]
+        imu_msg.orientation.w=quat[3]
+
+        self.imu_pub.publish(imu_msg)
 
 if __name__ == '__main__':
     fig = plt.figure(0)

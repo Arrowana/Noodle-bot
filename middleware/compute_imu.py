@@ -12,6 +12,7 @@ import math as m
 from threading import Thread
 import time
 from sensor_msgs.msg import Imu
+from tf.transformations import quaternion_from_euler
 
 TCP_IP = '0.0.0.0'
 TCP_PORT = 5005
@@ -22,6 +23,7 @@ data_queue = []
 
 class DataProcessor:          
     def __init__(self):
+        rospy.init_node('compute_imu')
         self.calibrated=False
         self.data_dict={}
 
@@ -29,10 +31,15 @@ class DataProcessor:
 
         self.s_acc=1
         self.s_gyro=1/131. # sensivity+ deg to rad
-        self.N_sample=100
+        self.N_sample=50 #200
         self.alpha=0.98
 
+        self.lp_alpha=0.99 
         self.low_pass=False
+
+
+        rospy.Subscriber("/msg_SPI", msg_SPI, self.on_msgSPI)
+        self.imu_pub = rospy.Publisher('imu', Imu, queue_size=10)
 
         self.setup_dict()
 
@@ -66,6 +73,9 @@ class DataProcessor:
         self.compute()
 
     def compute(self):
+        if self.calibrated==False and len(self.data_dict["AcX"])<self.N_sample+1:
+            print "Remaining values needed for calibration:", self.N_sample-len(self.data_dict["AcX"])
+
         if self.calibrated==False and len(self.data_dict["AcX"])>self.N_sample+1:
             self.calibrate()
 
@@ -84,9 +94,23 @@ class DataProcessor:
         if self.calibrated==True:
             dt=0.05
 
-            self.acc_x=(self.AcX-self.acc_x_cal)*self.s_acc
-            self.acc_y=(self.AcY-self.acc_y_cal)*self.s_acc
-            self.acc_z=(self.AcZ-self.acc_z_cal)*self.s_acc
+            acc_x_nf=(self.AcX-self.acc_x_cal)*self.s_acc
+            if self.low_pass:
+                self.acc_x=self.lp_alpha*self.acc_x+(1-self.lp_alpha)*acc_x_nf
+            else:
+                self.acc_x=acc_x_nf
+
+            acc_y_nf=(self.AcY-self.acc_y_cal)*self.s_acc
+            if self.low_pass:
+                self.acc_y=self.lp_alpha*self.acc_y+(1-self.lp_alpha)*acc_y_nf
+            else:
+                self.acc_y=acc_y_nf
+
+            acc_z_nf=(self.AcZ-self.acc_z_cal)*self.s_acc
+            if self.low_pass:
+                self.acc_z=self.lp_alpha*self.acc_z+(1-self.lp_alpha)*acc_z_nf
+            else:
+                self.acc_z=acc_z_nf
             
             self.gyro_x=(self.GyX-self.gyro_x_cal)*self.s_gyro
             self.gyro_y=(self.GyY-self.gyro_y_cal)*self.s_gyro
@@ -100,10 +124,16 @@ class DataProcessor:
             self.gyro_roll+=dt*self.gyro_x
             self.gyro_pitch+=dt*self.gyro_y
             self.gyro_yaw+=dt*self.gyro_z
+            # Keep gyro_yaw within -180;180
+            if gyro_yaw > 180:
+                gyro_yaw = -gyro_yaw + 360
+            elif gyro_yaw < -180:
+                gyro_yaw = gyro_yaw + 360
 
             self.roll=self.alpha*(self.roll+self.gyro_x*dt)+(1-self.alpha)*self.acc_roll
             self.pitch=self.alpha*(self.pitch+self.gyro_y*dt)+(1-self.alpha)*self.acc_pitch
 
+            self.publish_imu()
             self.send_computed_data()
 
     def calibrate(self):
@@ -145,11 +175,13 @@ class DataProcessor:
         imu_msg=Imu()
         imu_msg.header.stamp=rospy.Time.now()
         imu_msg.header.frame_id="map"
-        quat=quaternion_from_euler(-m.pi*self.data_dict["acc_roll"][-1]/180, m.pi*self.data_dict["acc_pitch"][-1]/180, m.pi*self.data_dict["gyro_yaw"][-1]/180)
+        quat=quaternion_from_euler(-m.pi*self.roll/180, m.pi*self.pitch/180, m.pi*self.gyro_yaw/180)
         imu_msg.orientation.x=quat[0]
         imu_msg.orientation.y=quat[1]
         imu_msg.orientation.z=quat[2]
         imu_msg.orientation.w=quat[3]
+
+        self.imu_pub.publish(imu_msg)
 
 class DataSender(Thread):
     def __init__(self):
@@ -185,7 +217,6 @@ def shutdown(signum=None, frame=None):
     sys.exit(0)
 
 if __name__ == '__main__':
-    rospy.init_node('teleport')
     signal(SIGINT, shutdown)
     signal(SIGTERM, shutdown)
 
@@ -195,7 +226,6 @@ if __name__ == '__main__':
     data_sender.daemon=True
     data_sender.start()
 
-    rospy.Subscriber("/msg_SPI", msg_SPI, data_proc.on_msgSPI)
 
     print "Initialization passed"
     rospy.spin()

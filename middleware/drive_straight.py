@@ -7,19 +7,20 @@ from intf.msg import *
 import math as m
 from tf.transformations import euler_from_quaternion
 
-heading_goal=0.
-speed_treshold=200
+speed_treshold=180
 
 class Driver:
 	def __init__(self):
 		rospy.init_node('driving_straight')
+		
+		self.heading_goal=0.		
 
 		self.wheel_radius=0.105
 		self.tractor_axle_width=0.26
 		self.K1=5.
 
 		self.lastTime=rospy.Time.now()
-
+			
 		self.state="straight"
 
 		print "Variables ready"
@@ -46,24 +47,41 @@ class Driver:
 		
 	def control(self, yaw):
 		currentTime=rospy.Time.now()
-		elapsedSecs=(currentTime-self.lastTime()).to_sec()
+		elapsedSecs=(currentTime-self.lastTime).to_sec()
 
-		if elapsedSecs<4.:
+		if elapsedSecs>16.:
+			if self.state=="straight":
+				self.state="spot_turn"
+				if self.heading_goal==0.:
+					self.heading_goal+=180.
+				else:
+					self.heading_goal-=0.
+			elif self.state=="spot_turn" and abs(yaw-m.pi*self.heading_goal/180)<1.5:
+				self.state="straight"
+
+			self.lastTime=rospy.Time.now()
+		
+		print "state:", self.state
+		if self.state=="straight":
 			self.stabilize(yaw, 1.)
-		elif elapsedSecs>4.:
-			heading_goal=heading_goal+180.
+		elif self.state=="spot_turn":
 			self.stabilize(yaw, 0.)
 
-
 	def stabilize(self, yaw, u1r):
-		heading_err=yaw - m.pi*heading_goal/180
+		print "heading_goal", self.heading_goal
+		heading_err=yaw - m.pi*self.heading_goal/180
 		print "heading_err_deg:", 180.*heading_err/m.pi
-
-		u1r=u1r
-		u2r=-self.K1*abs(u1r)*m.sin(heading_err)
+		
+		if abs(180.*heading_err/m.pi)<70.:
+			print "Normal"
+		elif abs(180.*heading_err/m.pi)>=70. and self.state=="spot_turn":
+			print "modify heading err because too large"
+			heading_err=m.copysign(1, heading_err)*50.
+		
+		u2r=-self.K1*m.sin(heading_err)
 		print "u2r:", u2r
 
-		factor=10.
+		factor=16.
 		left_speed= factor*(1./self.wheel_radius)*(u1r-self.tractor_axle_width*u2r)
 		right_speed= factor*(1./self.wheel_radius)*(u1r+self.tractor_axle_width*u2r)
 		print "left_speed", left_speed

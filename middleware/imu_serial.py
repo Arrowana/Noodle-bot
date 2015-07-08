@@ -3,6 +3,7 @@ import rospy
 
 from DataProcessor import DataProcessor
 from ImuSerialReceiver import ImuSerialReceiver
+from DataTCPSender import DataTCPSender
 
 import serial
 import time
@@ -21,7 +22,7 @@ if __name__ == '__main__':
     serialReceiver.daemon=True
     serialReceiver.start()
 
-    data_sender = DataSender(data_queue)
+    data_sender = DataTCPSender(data_queue)
     data_sender.daemon=True
     data_sender.start()
 

@@ -17,12 +17,13 @@ if __name__ == '__main__':
     dataProcessor=DataProcessor(data_queue)
 
     #Create data container
-    try:
-        serialReceiver=ImuSerialReceiver(SERIALPORT, dataProcessor)
-        serialReceiver.daemon=True
-        serialReceiver.start()
-    except(KeyboardInterrupt, SystemExit):
-        print('\n! Received keyboard interrupt, quitting threads.\n')
+    serialReceiver=ImuSerialReceiver(SERIALPORT, dataProcessor)
+    serialReceiver.daemon=True
+    serialReceiver.start()
+
+    data_sender = DataSender(data_queue)
+    data_sender.daemon=True
+    data_sender.start()
 
     rospy.spin()
 

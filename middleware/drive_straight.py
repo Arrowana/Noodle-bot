@@ -37,10 +37,10 @@ class Driver:
 		roll, pitch, yaw,=euler_from_quaternion(quaternion)
 		yaw_deg = 180.*yaw/m.pi
 		print "yaw_deg", yaw_deg
-        
-        self.control(yaw)
 		
-    def control(self, yaw):
+		self.control(yaw)
+		
+	def control(self, yaw):
 		heading_err=yaw - m.pi*heading_goal/180
 		print "heading_err_deg:", 180.*heading_err/m.pi
 
@@ -62,14 +62,14 @@ class Driver:
 		self.publish_velocities(int(left_speed), int(right_speed))
 
 	def publish_velocities(self, left_motor_speed, right_motor_speed):
-	    platform_cmd_msg=PlatformCmd()
-	    platform_cmd_msg.command = 11
+		platform_cmd_msg=PlatformCmd()
+		platform_cmd_msg.command = 11
 
-	    platform_cmd_msg.params=[0,0]
-	    platform_cmd_msg.params[0] = left_motor_speed
-	    platform_cmd_msg.params[1] = right_motor_speed
+		platform_cmd_msg.params=[0,0]
+		platform_cmd_msg.params[0] = left_motor_speed
+		platform_cmd_msg.params[1] = right_motor_speed
 
-	    self.velocity_pub.publish(platform_cmd_msg)
+		self.velocity_pub.publish(platform_cmd_msg)
 
 if __name__ == '__main__':
 	driver=Driver()

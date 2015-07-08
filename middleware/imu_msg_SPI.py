@@ -72,13 +72,13 @@ if __name__ == '__main__':
     data_queue = []
 
     data_proc=DataProcessor(data_queue)
-    imu=ImuReceiver(data_proc)
+    imu_rec=ImuReceiver(data_proc)
 
 
     data_sender = DataSender(data_queue)
     data_sender.daemon=True
     data_sender.start()
 
-
+    rospy.Subscriber("/msg_SPI", msg_SPI, imu_rec.on_msgSPI)
     print "Initialization passed"
     rospy.spin()

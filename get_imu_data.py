@@ -5,8 +5,6 @@ import serial
 
 from geometry_msgs.msg import Quaternion
 from sensor_msgs.msg import Imu
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 import random
 from threading import Thread, Event
 import time

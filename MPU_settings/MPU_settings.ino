@@ -5,6 +5,8 @@
 #include<Wire.h>
 const int MPU=0x68;  // I2C address of the MPU-6050
 int16_t AcX,AcY,AcZ,Tmp,GyX,GyY,GyZ;
+unsigned long lastTime=millis();
+
 void setup(){
   Wire.begin();
   Wire.beginTransmission(MPU);
@@ -46,13 +48,20 @@ void loop(){
   GyX=Wire.read()<<8|Wire.read();  // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
   GyY=Wire.read()<<8|Wire.read();  // 0x45 (GYRO_YOUT_H) & 0x46 (GYRO_YOUT_L)
   GyZ=Wire.read()<<8|Wire.read();  // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
+  
+  unsigned long currentTime = millis();
+  unsigned long elapsedTime = currentTime-lastTime;
+  lastTime=currentTime;
+  
   Serial.println("data:AcX"); Serial.println(AcX);
   Serial.println("data:AcY"); Serial.println(AcY);
   Serial.println("data:AcZ"); Serial.println(AcZ);
-  Serial.println("data:Tmp"); Serial.println(Tmp/340.00+36.53);  //equation for temperature in degrees C from datasheet
+  //Serial.println("data:Tmp"); Serial.println(Tmp/340.00+36.53);  //equation for temperature in degrees C from datasheet
   Serial.println("data:GyX"); Serial.println(GyX);
   Serial.println("data:GyY"); Serial.println(GyY);
   Serial.println("data:GyZ"); Serial.println(GyZ);
+  Serial.println("data:dt"); Serial.println(elapsedTime);
+  Serial.println("data:compute");
   
   Wire.beginTransmission(MPU);
   Wire.write(0x1A);

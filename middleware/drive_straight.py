@@ -18,6 +18,10 @@ class Driver:
 		self.tractor_axle_width=0.26
 		self.K1=5.
 
+		self.lastTime=rospy.Time.now()
+
+		self.state="straight"
+
 		print "Variables ready"
 		
 		sub = rospy.Subscriber('imu', Imu , self.imuCallback)
@@ -41,10 +45,21 @@ class Driver:
 		self.control(yaw)
 		
 	def control(self, yaw):
+		currentTime=rospy.Time.now()
+		elapsedSecs=(currentTime-self.lastTime()).to_sec()
+
+		if elapsedSecs<4.:
+			self.stabilize(yaw, 1.)
+		elif elapsedSecs>4.:
+			heading_goal=heading_goal+180.
+			self.stabilize(yaw, 0.)
+
+
+	def stabilize(self, yaw, u1r):
 		heading_err=yaw - m.pi*heading_goal/180
 		print "heading_err_deg:", 180.*heading_err/m.pi
 
-		u1r=1.
+		u1r=u1r
 		u2r=-self.K1*abs(u1r)*m.sin(heading_err)
 		print "u2r:", u2r
 

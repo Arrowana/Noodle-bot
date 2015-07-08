@@ -7,10 +7,11 @@ from geometry_msgs.msg import Quaternion
 from sensor_msgs.msg import Imu
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import random
 from threading import Thread, Event
 import time
 import math as m
+
+from ImuSerialReceiver import ImuSerialReceiver
 
 from tf.transformations import quaternion_from_euler
 
@@ -21,8 +22,6 @@ class DataContainer(Thread):
     def __init__(self, axes):
         Thread.__init__(self)
         
-        maxData=0
-        self.ser = serial.Serial(SERIALPORT, 115200)
         self.data_dict={}
         self.axes=axes
 
@@ -71,44 +70,6 @@ class DataContainer(Thread):
         line.axes.set_xlim(0, length)
         y_max=max([abs(x) for x in self.data_dict[data_name]])
         return y_max
-
-    def run(self):   
-        while True:
-            #print("Data received")
-            data_raw=self.ser.readline()
-            #print(data_raw)
-            data=data_raw.decode("utf-8")
-            self.process(str(data))
-            #time.sleep(1)
-
-    def process(self, data):
-        if "data:" in data:
-            try:
-                header, data_name=data.split(":")
-                data_name,=data_name.splitlines()
-            except:
-                print("Unexpected format for data_name")
-                return
-
-            if data_name == "compute" and "AcX" in self.data_dict:
-                print "compute data"
-                self.compute()
-            else:
-                try:
-                    # Read value associated to data_name
-                    value_raw=self.ser.readline()
-                    value=float(value_raw.decode("utf-8"))
-
-                    # Store in dictionnary and add key if doesn't exist
-                    if data_name in self.data_dict:
-                        self.data_dict[data_name].append(value)
-                    else:
-                        self.data_dict[data_name]=[value]
-                except:
-                    print("Unexpected format of data")
-
-
-
 
     def publish_ros(self):
         imu_msg=Imu()
@@ -241,9 +202,6 @@ class DataContainer(Thread):
         self.calibrated=True
         print("CALIBRATED")
 
-    def pop_data(self, data_list):
-        data_list.append(random.randint(0,100))
-
 if __name__ == '__main__':
     rospy.init_node('IMU_publisher', anonymous=True)
 
@@ -295,15 +253,16 @@ if __name__ == '__main__':
     
     axes=[ax_acc, ax_gyro, ax_roll_comb, ax_pitch_comb, ax_yaw, ax_roll_all, ax_pitch_all, ax_yaw_all]
 
-    #Create data container
+    dataContainer = DataContainer(axes)
+
     try:
-        data=DataContainer(axes)
-        data.daemon=True
-        data.start()
+        serialReceiver=ImuSerialReceiver(SERIALPORT, dataContainer)
+        serialReceiver.daemon=True
+        serialReceiver.start()
     except(KeyboardInterrupt, SystemExit):
         print('\n! Received keyboard interrupt, quitting threads.\n')
 
-    anim = animation.FuncAnimation(fig, data.update, interval=50)
+    anim = animation.FuncAnimation(fig, dataContainer.update, interval=50)
     plt.show()
 
    

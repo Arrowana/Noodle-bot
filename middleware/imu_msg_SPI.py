@@ -3,11 +3,8 @@ import rospy
 from robot.msg import *
 
 from DataProcessor import DataProcessor
-import os
-import sys
 import socket
 import json
-from signal import signal, SIGINT, SIG_DFL, SIGTERM
 import math as m
 from threading import Thread
 import time
@@ -17,9 +14,34 @@ TCP_PORT = 5005
 BUFFER_SIZE = 1024
 publish_imu = False
 
+class ImuReceiver:
+    def __init__(self, dataProcessor):
+        self.dataProcessor=dataProcessor
+
+    def on_msgSPI(self, msg):
+        self.AcX=msg.imu_acc_x
+        self.AcY=msg.imu_acc_y
+        self.AcZ=msg.imu_acc_z
+
+        self.GyX=msg.imu_roll
+        self.GyY=msg.imu_pitch
+        self.GyZ=msg.imu_yaw
+
+        self.dataProcessor.data_dict["AcX"].append(self.AcX)
+        self.dataProcessor.data_dict["AcY"].append(self.AcY)
+        self.dataProcessor.data_dict["AcZ"].append(self.AcZ)
+
+        self.dataProcessor.data_dict["GyX"].append(self.GyX)
+        self.dataProcessor.data_dict["GyY"].append(self.GyY)
+        self.dataProcessor.data_dict["GyZ"].append(self.GyZ)
+
+        self.dataProcessor.compute()
+
 class DataSender(Thread):
-    def __init__(self):
+    def __init__(self, data_queue):
         Thread.__init__(self)
+
+        self.data_queue=data_queue
 
     def run(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -33,31 +55,27 @@ class DataSender(Thread):
         data = self.conn.recv(BUFFER_SIZE)
         print data
 
-        del data_queue[:]
+        del self.data_queue[:]
 
         while True:
             if data_queue:
                 data_to_send = json.dumps(data_queue[0])
                 print "data_sent :", data_to_send
                 self.conn.send(data_to_send)
-                data_queue.pop(0)
+                self.data_queue.pop(0)
 
-                print "length of queue:", len(data_queue)
+                print "length of queue:", len(self.data_queue)
             #time.sleep(0.05)
 
-def shutdown(signum=None, frame=None):
-    print "shutdown", signum, frame
-    sys.exit(0)
-
 if __name__ == '__main__':
-    signal(SIGINT, shutdown)
-    signal(SIGTERM, shutdown)
-
+    rospy.init_node('compute_imu')
     data_queue = []
 
     data_proc=DataProcessor(data_queue)
+    imu=ImuReceiver(data_proc)
 
-    data_sender = DataSender()
+
+    data_sender = DataSender(data_queue)
     data_sender.daemon=True
     data_sender.start()
 

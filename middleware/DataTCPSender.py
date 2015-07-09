@@ -28,8 +28,8 @@ class DataTCPSender(Thread):
         del self.data_queue[:]
 
         while True:
-            if data_queue:
-                data_to_send = json.dumps(data_queue[0])
+            if self.data_queue:
+                data_to_send = json.dumps(self.data_queue[0])
                 print "data_sent :", data_to_send
                 self.conn.send(data_to_send)
                 self.data_queue.pop(0)

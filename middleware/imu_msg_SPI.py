@@ -35,7 +35,7 @@ if __name__ == '__main__':
     data_queue = []
 
     data_proc=DataProcessor(data_queue)
-    imu_rec=ImuFirware(data_proc)
+    imu_rec=ImuFirmware(data_proc)
 
     data_sender = DataTCPSender(data_queue)
     data_sender.daemon=True

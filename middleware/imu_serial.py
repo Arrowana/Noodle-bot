@@ -23,7 +23,7 @@ if __name__ == '__main__':
     serialReceiver.start()
 
     data_sender = DataTCPSender(data_queue)
-    data_sender.daemon=True
+    #data_sender.daemon=True
     data_sender.start()
 
     rospy.spin()

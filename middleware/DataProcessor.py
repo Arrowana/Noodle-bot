@@ -135,6 +135,12 @@ class DataProcessor:
 		gyro_rpy_data = {"gyro_roll":self.gyro_roll,"gyro_pitch":self.gyro_pitch}
 		rpy_data = {"roll":self.roll,"pitch":self.pitch,"gyro_yaw":self.gyro_yaw}
 
+		isDmp=False
+
+		if all(name in self.data_dict for name in ["roll_dmp", "pitch_dmp", "yaw_dmp"]):
+			dmp_data = {"roll_dmp":self.data_dict,"pitch_dmp":self.data_dict,"yaw_dmp":self.data_dict}
+			isDmp=True
+
 		# Lower update of values
 		if (rospy.Time.now()-self.last_update).to_sec()>0.2:
 			print "roll:",self.roll,"pitch:",self.pitch,"gyro_yaw", self.gyro_yaw
@@ -144,6 +150,9 @@ class DataProcessor:
 			self.send(gyro_data)
 			self.send(gyro_rpy_data)
 			self.send(rpy_data)
+
+			if isDmp:
+				self.send(dmp_data)
 
 			self.last_update = rospy.Time.now()
 

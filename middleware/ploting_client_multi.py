@@ -130,6 +130,10 @@ class DataReceiver(Thread):
 
         self.data_dict["roll"]=[]
         self.data_dict["pitch"]=[]
+
+        self.data_dict["roll_dmp"] = []
+        self.data_dict["pitch_dmp"] = []
+        self.data_dict["yaw_dmp"] = []
         self.s.send("Hi")
 
         # Start receiving loop
@@ -185,17 +189,20 @@ if __name__ == '__main__':
     ax_pitch_comb.plot([],[], label="acc_pitch")
     ax_pitch_comb.plot([],[], label="gyro_pitch")
 
-    ax_roll=plt.subplot(335)
-    plt.title("roll")
-    ax_roll.plot([],[], label="roll")
+    ax_roll_all=plt.subplot(337)
+    plt.title("roll and roll_dmp")
+    ax_roll_all.plot([],[], label="roll")
+    ax_roll_all.plot([],[], label="roll_dmp")
 
-    ax_pitch=plt.subplot(336)
-    plt.title("pitch")
-    ax_pitch.plot([],[], label="pitch")
+    ax_pitch_all=plt.subplot(338)
+    plt.title("pitch and pitch_dmp")
+    ax_pitch_all.plot([],[], label="pitch")
+    ax_pitch_all.plot([],[], label="pitch_dmp")
 
-    ax_yaw=plt.subplot(338)
+    ax_yaw_all=plt.subplot(339)
     plt.title("gyro_yaw")
-    ax_yaw.plot([],[], label="gyro_yaw")
+    ax_yaw_all.plot([],[], label="gyro_yaw")
+    ax_yaw_all.plot([],[], label="yaw_dmp")
 
     axes=[ax_acc, ax_gyro, ax_roll_comb, ax_pitch_comb, ax_roll, ax_pitch, ax_yaw]
 

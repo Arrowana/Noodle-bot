@@ -138,7 +138,7 @@ class DataProcessor:
 		isDmp=False
 
 		if all(name in self.data_dict for name in ["roll_dmp", "pitch_dmp", "yaw_dmp"]):
-			dmp_data = {"roll_dmp":self.data_dict,"pitch_dmp":self.data_dict,"yaw_dmp":self.data_dict}
+			dmp_data = {"roll_dmp":self.data_dict["roll_dmp"][-1],"pitch_dmp":self.data_dict["pitch_dmp"][-1],"yaw_dmp":self.data_dict["yaw_dmp"][-1]}
 			isDmp=True
 
 		# Lower update of values

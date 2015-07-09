@@ -31,8 +31,13 @@ class DataTCPSender(Thread):
             if self.data_queue:
                 data_to_send = json.dumps(self.data_queue[0])
                 print "data_sent :", data_to_send
-                self.conn.send(data_to_send)
-                self.data_queue.pop(0)
+		try:
+		    self.conn.send(data_to_send)
+                except:
+			print "Exception sending message"
+			break
+		self.data_queue.pop(0)
 
                 print "length of queue:", len(self.data_queue)
             #time.sleep(0.05)
+

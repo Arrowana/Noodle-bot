@@ -11,8 +11,7 @@ import time
 SERIALPORT="/dev/ttyUSB0"
 
 if __name__ == '__main__':
-    rospy.init_node('IMU_publisher', anonymous=True)
-
+    rospy.init_node('imu_serial')
     data_queue=[]
 
     dataProcessor=DataProcessor(data_queue)
@@ -25,8 +24,6 @@ if __name__ == '__main__':
     data_sender = DataTCPSender(data_queue)
     #data_sender.daemon=True
     data_sender.start()
-
-    rospy.spin()
 
    
 

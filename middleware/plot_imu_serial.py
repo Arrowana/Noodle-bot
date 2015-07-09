@@ -7,7 +7,6 @@ from geometry_msgs.msg import Quaternion
 from sensor_msgs.msg import Imu
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from threading import Thread, Event
 import time
 import math as m
 
@@ -18,10 +17,8 @@ from tf.transformations import quaternion_from_euler
 
 SERIALPORT="/dev/ttyUSB0"
 
-class DataContainer(Thread):
+class DataContainer():
     def __init__(self, axes):
-        Thread.__init__(self)
-        
         self.data_dict={}
         self.axes=axes
 

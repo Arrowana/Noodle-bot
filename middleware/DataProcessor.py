@@ -17,7 +17,7 @@ class DataProcessor:
 		self.last_update = rospy.Time.now()
 
 		self.s_acc=1
-		self.s_gyro=1/131. # sensivity+ deg to rad
+		self.s_gyro==1./16.4 #1/131. # sensivity+ deg to rad
 		self.N_sample=100 #200
 		self.alpha=0.98
 

@@ -15,7 +15,8 @@ class DataTCPSender(Thread):
 
     def run(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        #set opt
+        #server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind((TCP_IP, TCP_PORT))
         server_socket.listen(1)
 

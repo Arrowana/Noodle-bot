@@ -29,7 +29,7 @@ class Driver:
 
 		print "Variables ready"
 		
-		sub = rospy.Subscriber('imu', Imu , self.imuCallback)
+		rospy.Subscriber('imu', Imu , self.imuCallback)
 		self.velocity_pub = rospy.Publisher('msg_teleops', PlatformCmd, queue_size=10)
 
 		print "Driver initialized"

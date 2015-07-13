@@ -8,6 +8,10 @@ import math as m
 from tf.transformations import euler_from_quaternion
 
 speed_treshold=180
+spot_turn_speed=50
+
+def toDegrees(angle_rad):
+	return 180.*angle_rad/m.pi
 
 class Driver:
 	def __init__(self):
@@ -40,8 +44,7 @@ class Driver:
 			imu_msg.orientation.z,
 			imu_msg.orientation.w)
 		roll, pitch, yaw,=euler_from_quaternion(quaternion)
-		yaw_deg = 180.*yaw/m.pi
-		print "yaw_deg", yaw_deg
+		print "yaw_deg", toDegrees(yaw)
 		
 		self.control(yaw)
 		
@@ -49,14 +52,14 @@ class Driver:
 		currentTime=rospy.Time.now()
 		elapsedSecs=(currentTime-self.lastTime).to_sec()
 
-		if elapsedSecs>16.:
+		if elapsedSecs>10.:
 			if self.state=="straight":
 				self.state="spot_turn"
 				if self.heading_goal==0.:
 					self.heading_goal+=180.
 				else:
 					self.heading_goal-=0.
-			elif self.state=="spot_turn" and abs(yaw-m.pi*self.heading_goal/180)<1.5:
+			elif self.state=="spot_turn" and abs(toDegrees(yaw)-self.heading_goal)<1.5:
 				self.state="straight"
 
 			self.lastTime=rospy.Time.now()
@@ -70,22 +73,28 @@ class Driver:
 	def stabilize(self, yaw, u1r):
 		print "heading_goal", self.heading_goal
 		heading_err=yaw - m.pi*self.heading_goal/180
-		print "heading_err_deg:", 180.*heading_err/m.pi
+		print "heading_err_deg:", toDegrees(heading_err)
 		
-		if abs(180.*heading_err/m.pi)<70.:
+		if abs(toDegrees(heading_err))<70.:
 			print "Normal"
-		elif abs(180.*heading_err/m.pi)>=70. and self.state=="spot_turn":
-			print "modify heading err because too large"
-			heading_err=m.copysign(1, heading_err)*50.
-		
-		u2r=-self.K1*m.sin(heading_err)
-		print "u2r:", u2r
 
-		factor=16.
-		left_speed= factor*(1./self.wheel_radius)*(u1r-self.tractor_axle_width*u2r)
-		right_speed= factor*(1./self.wheel_radius)*(u1r+self.tractor_axle_width*u2r)
+			u2r=-self.K1*m.sin(heading_err)
+			print "u2r:", u2r
+			#Stabilize heading
+			factor=16.
+			left_speed=factor*(1./self.wheel_radius)*(u1r-self.tractor_axle_width*u2r)
+			right_speed=factor*(1./self.wheel_radius)*(u1r+self.tractor_axle_width*u2r)
+
+		elif abs(toDegrees(heading_err))>=70. and self.state=="spot_turn":
+			print "modify heading err because too large"
+			sign=m.copysign(1, heading_err)
+
+			left_speed=sign*spot_turn_speed
+			right_speed=-sign*spot_turn_speed
+
 		print "left_speed", left_speed
 		print "right_speed", right_speed
+
 
 		if left_speed > speed_treshold or right_speed > speed_treshold:
 			print "speed_treshold reached"

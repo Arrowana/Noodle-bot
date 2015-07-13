@@ -74,7 +74,13 @@ class Driver:
 		print "heading_goal", self.heading_goal
 		heading_err=yaw - m.pi*self.heading_goal/180
 		print "heading_err_deg:", toDegrees(heading_err)
-		
+
+		# Keep gyro_yaw within -180;180
+		if heading_err > 185:
+			heading_err = heading_err - 360
+		elif heading_err < -180:
+			heading_err = heading_err + 360
+
 		if abs(toDegrees(heading_err))<20.:
 			print "Normal"
 

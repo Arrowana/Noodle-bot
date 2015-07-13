@@ -75,7 +75,7 @@ class Driver:
 		heading_err=yaw - m.pi*self.heading_goal/180
 		print "heading_err_deg:", toDegrees(heading_err)
 		
-		if abs(toDegrees(heading_err))<70.:
+		if abs(toDegrees(heading_err))<20.:
 			print "Normal"
 
 			u2r=-self.K1*m.sin(heading_err)
@@ -85,7 +85,7 @@ class Driver:
 			left_speed=factor*(1./self.wheel_radius)*(u1r-self.tractor_axle_width*u2r)
 			right_speed=factor*(1./self.wheel_radius)*(u1r+self.tractor_axle_width*u2r)
 
-		elif abs(toDegrees(heading_err))>=70. and self.state=="spot_turn":
+		elif abs(toDegrees(heading_err))>=20. and self.state=="spot_turn":
 			print "modify heading err because too large"
 			sign=m.copysign(1, heading_err)
 

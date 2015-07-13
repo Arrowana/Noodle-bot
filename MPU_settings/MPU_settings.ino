@@ -17,7 +17,7 @@ void setup(){
   Wire.beginTransmission(MPU);
   //Set low pass filter - see register datasheet
   Wire.write(0x1A);
-  Wire.write(0x06);
+  Wire.write(0x00);
   Wire.endTransmission(true);
   
   Wire.beginTransmission(MPU);

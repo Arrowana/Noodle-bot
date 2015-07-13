@@ -200,11 +200,11 @@ if __name__ == '__main__':
     ax_pitch_all.plot([],[], label="pitch_dmp")
 
     ax_yaw_all=plt.subplot(339)
-    plt.title("gyro_yaw")
+    plt.title("gyro_yaw and yaw_dmp")
     ax_yaw_all.plot([],[], label="gyro_yaw")
     ax_yaw_all.plot([],[], label="yaw_dmp")
 
-    axes=[ax_acc, ax_gyro, ax_roll_comb, ax_pitch_comb, ax_roll, ax_pitch, ax_yaw]
+    axes=[ax_acc, ax_gyro, ax_roll_comb, ax_pitch_comb, ax_roll_all, ax_pitch_all, ax_yaw_all]
 
     data_rc=DataReceiver(axes)
     data_rc.daemon=True

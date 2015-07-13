@@ -13,6 +13,13 @@ spot_turn_speed=50
 def toDegrees(angle_rad):
 	return 180.*angle_rad/m.pi
 
+def normalizeAngle(angle):
+	angle=angle % 360
+	angle=(angle+360) % 360
+	if(angle>180):
+		angle-=360
+	return angle
+
 class Driver:
 	def __init__(self):
 		rospy.init_node('driving_straight')
@@ -58,8 +65,8 @@ class Driver:
 				if self.heading_goal==0.:
 					self.heading_goal+=180.
 				else:
-					self.heading_goal-=0.
-			elif self.state=="spot_turn" and abs(toDegrees(yaw)-self.heading_goal)<1.5:
+					self.heading_goal-=180.
+			elif self.state=="spot_turn" and abs(normalizeAngle(toDegrees(yaw)-self.heading_goal))<1.5:
 				self.state="straight"
 
 			self.lastTime=rospy.Time.now()
@@ -75,12 +82,10 @@ class Driver:
 		heading_err=yaw - m.pi*self.heading_goal/180
 		print "heading_err_deg:", toDegrees(heading_err)
 
-		# Keep gyro_yaw within -180;180
-		if heading_err > 185:
-			heading_err = heading_err - 360
-		elif heading_err < -180:
-			heading_err = heading_err + 360
+		# Keep heading_err within -180;180
+		heading_err=m.pi*normalizeAngle(toDegrees(heading_err))/180.
 
+		print "heading_err corr:", toDegrees(heading_err)
 		if abs(toDegrees(heading_err))<20.:
 			print "Normal"
 
@@ -91,7 +96,7 @@ class Driver:
 			left_speed=factor*(1./self.wheel_radius)*(u1r-self.tractor_axle_width*u2r)
 			right_speed=factor*(1./self.wheel_radius)*(u1r+self.tractor_axle_width*u2r)
 
-		elif abs(toDegrees(heading_err))>=20. and self.state=="spot_turn":
+		elif abs(toDegrees(heading_err))>=20.:
 			print "modify heading err because too large"
 			sign=m.copysign(1, heading_err)
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#/usr/bin/env python
 import rospy
 from robot.msg import *
 from sensor_msgs.msg import Imu
@@ -7,8 +7,9 @@ from intf.msg import *
 import math as m
 from tf.transformations import euler_from_quaternion
 
-speed_treshold=180
-spot_turn_speed=50
+speed_treshold=220
+spot_turn_speed=80
+wait_time=25.
 
 def toDegrees(angle_rad):
 	return 180.*angle_rad/m.pi
@@ -31,7 +32,8 @@ class Driver:
 		self.K1=5.
 
 		self.lastTime=rospy.Time.now()
-			
+		self.startWaitTime=rospy.Time.now()			
+
 		self.state="straight"
 
 		print "Variables ready"
@@ -58,18 +60,26 @@ class Driver:
 	def control(self, yaw):
 		currentTime=rospy.Time.now()
 		elapsedSecs=(currentTime-self.lastTime).to_sec()
-
-		if elapsedSecs>10.:
+		
+		print "elapsed secs:", elapsedSecs
+		if elapsedSecs>wait_time:
 			if self.state=="straight":
 				self.state="spot_turn"
 				if self.heading_goal==0.:
 					self.heading_goal+=180.
 				else:
 					self.heading_goal-=180.
-			elif self.state=="spot_turn" and abs(normalizeAngle(toDegrees(yaw)-self.heading_goal))<1.5:
-				self.state="straight"
 
-			self.lastTime=rospy.Time.now()
+		if (self.state=="spot_turn" or "endSpotTurn") and abs(normalizeAngle(toDegrees(yaw)-self.heading_goal))<1.5:
+			wait_secs=(currentTime-self.startWaitTime).to_sec()
+			print "wait_secs:", wait_secs			
+		
+			if self.state=="spot_turn":
+				self.state="endSpotTurn"
+				self.startWaitTime=rospy.Time.now()
+			elif  wait_secs>4. and self.state=="endSpotTurn":
+				self.state="straight"
+				self.lastTime=rospy.Time.now()
 		
 		print "state:", self.state
 		if self.state=="straight":
@@ -92,7 +102,7 @@ class Driver:
 			u2r=-self.K1*m.sin(heading_err)
 			print "u2r:", u2r
 			#Stabilize heading
-			factor=16.
+			factor=20.
 			left_speed=factor*(1./self.wheel_radius)*(u1r-self.tractor_axle_width*u2r)
 			right_speed=factor*(1./self.wheel_radius)*(u1r+self.tractor_axle_width*u2r)
 

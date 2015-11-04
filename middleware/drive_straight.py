@@ -9,7 +9,7 @@ from tf.transformations import euler_from_quaternion
 
 speed_treshold=220
 spot_turn_speed=80
-wait_time=25.
+wait_time=30.
 
 def toDegrees(angle_rad):
 	return 180.*angle_rad/m.pi
